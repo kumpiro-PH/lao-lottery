@@ -427,31 +427,28 @@ def generate_combinations(digits, length, include_reverse=True):
 # 8. DISPLAY HELPERS
 # =====================================================
 
+
 def display_number_cards(ranking, formula_counter, daily_counter):
 
     html = ['<div class="grid-container">']
 
     for digit, total in ranking:
-
         formula_count = formula_counter[digit]
         daily_count = daily_counter[digit]
 
-        html.append(f"""
-        <div class="stat-card">
-            <div class="stat-num">{digit}</div>
-            <div class="stat-count">{total} ครั้ง</div>
-            <div style="font-size:10px;color:#64748b;margin-top:5px;">
-                สูตร {formula_count} + Daily {daily_count}
-            </div>
-        </div>
-        """)
+        html.append(
+            f'<div class="stat-card">'
+            f'<div class="stat-num">{digit}</div>'
+            f'<div class="stat-count">{total} ครั้ง</div>'
+            f'<div style="font-size:10px;color:#64748b;margin-top:5px;">'
+            f'สูตร {formula_count} + Daily {daily_count}'
+            f'</div></div>'
+        )
 
-    html.append("</div>")
+    html.append('</div>')
 
-    st.markdown(
-        "".join(html),
-        unsafe_allow_html=True
-    )
+    st.html("".join(html))
+
 
 
 def display_number_group(title, numbers):
