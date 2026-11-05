@@ -1,507 +1,872 @@
-# app.py - Lao AI Professional v4.1 (Final Complete Version with CSV & 3-Way Fusion)
-import os
+
 import streamlit as st
-import pandas as pd
 from datetime import datetime
 from collections import Counter
 from itertools import combinations
+import re
 
-# ==========================================
-# 1. PAGE CONFIG & CUSTOM CSS (Sky Blue Theme)
-# ==========================================
+# =====================================================
+# 1. PAGE CONFIG
+# =====================================================
+
 st.set_page_config(
-    page_title="Lao AI Professional v4.1",
+    page_title="LAO AI PROFESSIONAL v4.1",
     page_icon="🧠",
     layout="centered"
 )
 
+VERSION = "4.1 HYBRID DAILY & COMBINATION ENGINE"
+
+# =====================================================
+# 2. CSS - SKY BLUE MOBILE THEME
+# =====================================================
+
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
 
-    html, body, [class*="css"] {
-        font-family: 'Sarabun', sans-serif;
-    }
+html, body, [class*="css"] {
+    font-family: 'Sarabun', sans-serif;
+}
 
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    .grid-container {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-        gap: 10px;
-        margin-top: 15px;
-        margin-bottom: 15px;
-    }
-    
-    .stat-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
-        border: 1px solid #bae6fd;
-        border-top: 4px solid #0284c7;
-        border-radius: 12px;
-        padding: 12px 6px;
-        text-align: center;
-        box-shadow: 0 2px 6px rgba(2, 132, 199, 0.08);
-    }
-    .stat-num {
-        font-size: 26px;
-        font-weight: 800;
-        color: #0c4a6e;
-        line-height: 1.2;
-    }
-    .stat-count {
-        font-size: 12px;
-        font-weight: 600;
-        color: #0369a1;
-        background-color: #e0f2fe;
-        padding: 2px 8px;
-        border-radius: 12px;
-        display: inline-block;
-        margin-top: 6px;
-    }
+#MainMenu {visibility:hidden;}
+footer {visibility:hidden;}
 
-    .pair-box {
-        background-color: #f0f9ff;
-        border-left: 4px solid #0284c7;
-        border-radius: 8px;
-        padding: 12px 15px;
-        margin-top: 10px;
-        margin-bottom: 15px;
-    }
-    .pair-title {
-        font-weight: 700;
-        color: #0369a1;
-        margin-bottom: 8px;
-        font-size: 15px;
-    }
-    .badge {
-        display: inline-block;
-        background-color: #ffffff;
-        border: 1px solid #7dd3fc;
-        border-radius: 6px;
-        padding: 4px 8px;
-        margin: 3px;
-        font-weight: 600;
-        color: #0c4a6e;
-        font-size: 13px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-    }
-    .badge-highlight {
-        background-color: #0284c7;
-        border-color: #0369a1;
-        color: #ffffff;
-    }
+.grid-container {
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(80px,1fr));
+    gap:10px;
+    margin-top:15px;
+    margin-bottom:15px;
+}
+
+.stat-card {
+    background:linear-gradient(135deg,#ffffff,#f0f9ff);
+    border:1px solid #bae6fd;
+    border-top:4px solid #0284c7;
+    border-radius:12px;
+    padding:12px 6px;
+    text-align:center;
+    box-shadow:0 2px 6px rgba(2,132,199,.08);
+}
+
+.stat-num {
+    font-size:26px;
+    font-weight:800;
+    color:#0c4a6e;
+}
+
+.stat-count {
+    font-size:12px;
+    font-weight:600;
+    color:#0369a1;
+    background:#e0f2fe;
+    padding:3px 8px;
+    border-radius:12px;
+    display:inline-block;
+    margin-top:6px;
+}
+
+.pair-box {
+    background:#f0f9ff;
+    border-left:4px solid #0284c7;
+    border-radius:8px;
+    padding:12px;
+    margin:12px 0;
+}
+
+.pair-title {
+    font-weight:700;
+    color:#0369a1;
+    margin-bottom:8px;
+}
+
+.badge-number {
+    display:inline-block;
+    background:white;
+    border:1px solid #7dd3fc;
+    border-radius:6px;
+    padding:5px 9px;
+    margin:3px;
+    font-weight:700;
+    color:#0c4a6e;
+    font-size:14px;
+}
+
+.badge-highlight {
+    background:#0284c7;
+    color:white;
+    border-color:#0369a1;
+}
+
+.section-note {
+    color:#64748b;
+    font-size:13px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-VERSION = "4.1 WEB 3-WAY FUSION"
-CSV_FILE_MAIN = "history_lao.csv"
 
-DAY_MAP = {
-    "Monday": "mon",
-    "Tuesday": "tue",
-    "Wednesday": "wed",
-    "Thursday": "thu",
-    "Friday": "fri",
-    "Saturday": "sat",
-    "Sunday": "sun",
-}
+# =====================================================
+# 3. DAILY NUMBERS
+# =====================================================
 
 DAILY_NUMBERS = {
-    "Monday": "940627",
-    "Tuesday": "017562",
-    "Wednesday": "394517",
-    "Thursday": "643951",
-    "Friday": "974516",
-    "Saturday": "820739",
-    "Sunday": "470076",
+    "Monday": "056787",
+    "Tuesday": "657872",
+    "Wednesday": "390768",
+    "Thursday": "897693",
+    "Friday": "305687",
+    "Saturday": "7890123",
+    "Sunday": "8901234"
 }
 
-# ==========================================
-# 2. ฟังก์ชันจัดการ CSV และ สูตรคำนวณ (1-15)
-# ==========================================
-def load_csv_data(filename):
-    """อ่าน CSV และแปลงโครงสร้างคอลัมน์มาตรฐาน date, special, first_prize, top_3, bottom_2"""
-    if os.path.exists(filename):
-        try:
-            df = pd.read_csv(filename, dtype=str, keep_default_na=False)
-            df.columns = df.columns.str.strip()
+DAY_NAMES_TH = {
+    "Monday": "วันจันทร์",
+    "Tuesday": "วันอังคาร",
+    "Wednesday": "วันพุธ",
+    "Thursday": "วันพฤหัสบดี",
+    "Friday": "วันศุกร์",
+    "Saturday": "วันเสาร์",
+    "Sunday": "วันอาทิตย์"
+}
 
-            if df.columns[0].isdigit() or len(df.columns) < 5:
-                df = pd.read_csv(
-                    filename,
-                    header=None,
-                    dtype=str,
-                    keep_default_na=False,
-                    names=["date", "special", "first_prize", "top_3", "bottom_2"]
-                )
-            else:
-                column_mapping = {
-                    "วันที่": "date",
-                    "เลข 6 ตัว": "special",
-                    "รางวัลพิเศษ": "special",
-                    "รางวัลที่ 1": "first_prize",
-                    "3 ตัวบน": "top_3",
-                    "เลข 3 ตัวบน": "top_3",
-                    "2 ตัวล่าง": "bottom_2",
-                    "เลข 2 ตัวล่าง": "bottom_2"
-                }
-                df = df.rename(columns=column_mapping)
+CURRENT_DAY = datetime.now().strftime("%A")
 
-            return df
-        except Exception as exc:
-            st.error(f"ไม่สามารถอ่านไฟล์ {filename}: {exc}")
-            return pd.DataFrame()
 
-    return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
+def get_daily_number(day):
+    return DAILY_NUMBERS.get(day, "000000")
 
-def load_specific_day_history(day_en):
-    """โหลดข้อมูลเฉพาะไฟล์ CSV ประจำวันนั้นๆ เช่น history_lao_thu.csv"""
-    day_code = DAY_MAP.get(day_en, "mon")
-    filename = f"history_lao_{day_code}.csv"
-    return load_csv_data(filename)
 
-def formula5(number):
-    digits = [int(x) for x in number]
-    score = Counter()
-    counter = Counter(digits)
-    for digit, count in counter.items(): score[digit] += count * 5
-    for i in range(len(digits) - 1): score[(digits[i] + digits[i + 1]) % 10] += 2
-    for i in range(len(digits) - 1): score[(digits[i] * digits[i + 1]) % 10] += 2
-    for i in range(len(digits) - 1): score[abs(digits[i] - digits[i + 1])] += 1
-    ranking = sorted(score.items(), key=lambda x: (-x[1], x[0]))
-    return "".join(str(digit) for digit, _ in ranking[:4]).zfill(4)
+# =====================================================
+# 4. FORMULA ENGINE - 15 FORMULAS
+# =====================================================
+
+def validate_number(number):
+    return bool(re.fullmatch(r"[0-9]{6}", str(number)))
+
 
 def formula1(number):
-    a, b, c, d, e, f = [int(x) for x in number[:6]]
-    value = ((a+b+c)*(d+e+f)+(a*f)+(c*e)) % 10000
-    res = f"{value:04d}"
-    return formula5(number) if res == "0000" else res
+    a, b, c, d, e, f = map(int, number)
+
+    value = (
+        (a+b+c)*(d+e+f)
+        + (a*f)
+        + (c*e)
+    ) % 10000
+
+    result = f"{value:04d}"
+
+    return formula5(number) if result == "0000" else result
+
 
 def formula2(number):
-    a, b, c, d, e, f = [int(x) for x in number[:6]]
+    a, b, c, d, e, f = map(int, number)
+
     return f"{((a*b)+(c*d)+(e*f)) % 10000:04d}"
 
+
 def formula3(number):
-    a, b, c, d, e, f = [int(x) for x in number[:6]]
-    return f"{((a+b+c+d+e+f)*111) % 10000:04d}"
+    digits = list(map(int, number))
+
+    return f"{(sum(digits)*111) % 10000:04d}"
+
 
 def formula4(number):
-    a, b, c, d, e, f = [int(x) for x in number[:6]]
+    a, b, c, d, e, f = map(int, number)
+
     value = ((a+b+c)*(d+e+f)) % 10000
-    res = f"{value:04d}"
-    return formula5(number) if res == "0000" else res
+
+    result = f"{value:04d}"
+
+    return formula5(number) if result == "0000" else result
+
+
+def formula5(number):
+    digits = list(map(int, number))
+
+    score = Counter()
+    counter = Counter(digits)
+
+    # Original digit frequency
+    for digit, count in counter.items():
+        score[digit] += count * 5
+
+    # Adjacent addition
+    for i in range(len(digits)-1):
+        score[(digits[i]+digits[i+1]) % 10] += 2
+
+    # Adjacent multiplication
+    for i in range(len(digits)-1):
+        score[(digits[i]*digits[i+1]) % 10] += 2
+
+    # Adjacent difference
+    for i in range(len(digits)-1):
+        score[abs(digits[i]-digits[i+1])] += 1
+
+    ranking = sorted(
+        score.items(),
+        key=lambda x: (-x[1], x[0])
+    )
+
+    selected = [str(d) for d, _ in ranking[:4]]
+
+    return "".join(selected).zfill(4)
+
 
 def formula6(number):
-    a, b, c, d, e, f = [int(x) for x in number[:6]]
+    a, b, c, d, e, f = map(int, number)
+
     return f"{((a+c+e)*(b+d+f)) % 10000:04d}"
 
+
 def formula7(number):
-    a, b, c, d, e, f = [int(x) for x in number[:6]]
+    a, b, c, d, e, f = map(int, number)
+
     return f"{((a*10+b)+(e*10+f)) % 10000:04d}"
 
+
 def formula8(number):
-    a, b, c, d, e, f = [int(x) for x in number[:6]]
-    return f"{((a+b+c+d+e+f)*123) % 10000:04d}"
+    digits = list(map(int, number))
+
+    return f"{(sum(digits)*123) % 10000:04d}"
+
 
 def formula9(number):
-    a, b, c, d, e, f = [int(x) for x in number[:6]]
-    return f"{abs((a*100+b*10+c)-(d*100+e*10+f)) % 10000:04d}"
+    a, b, c, d, e, f = map(int, number)
+
+    front = a*100+b*10+c
+    back = d*100+e*10+f
+
+    return f"{abs(front-back) % 10000:04d}"
+
 
 def formula10(number):
-    a, b, c, d, e, f = [int(x) for x in number[:6]]
+    a, b, c, d, e, f = map(int, number)
+
     return f"{((a*f)+(b*e)+(c*d)) % 10000:04d}"
 
+
 def formula11(number):
-    digits = [int(x) for x in number]
+    digits = list(map(int, number))
+
     results = []
+
     for i in range(len(digits)):
-        for j in range(i + 1, len(digits)):
-            results.append(f"{(digits[i] * digits[j]) % 100:02d}")
+        for j in range(i+1, len(digits)):
+            results.append(
+                f"{(digits[i]*digits[j]) % 100:02d}"
+            )
+
     counter = Counter(results)
-    ranking = sorted(counter.items(), key=lambda x: (-x[1], int(x[0])))
-    if not ranking: return "0000"
-    if len(ranking) == 1: return ranking[0][0] * 2
+
+    ranking = sorted(
+        counter.items(),
+        key=lambda x: (-x[1], int(x[0]))
+    )
+
+    if not ranking:
+        return "0000"
+
+    if len(ranking) == 1:
+        return ranking[0][0] * 2
+
     return ranking[0][0] + ranking[1][0]
 
+
 def formula12(number):
-    num_list = [int(x) for x in number]
-    d, e = num_list[3], num_list[4]
-    base = (d + e) % 10
-    return f"{base}{(base+1)%10}{(base+2)%10}{(base+3)%10}"
+    _, _, _, d, e, _ = map(int, number)
+
+    base = (d+e) % 10
+
+    return "".join(
+        str((base+i) % 10)
+        for i in range(4)
+    )
+
 
 def formula13(number):
-    num_list = [int(x) for x in number]
-    a, c, f = num_list[0], num_list[2], num_list[5]
-    return f"{((a + c + f) * 9) % 10000:04d}"
+    a, _, c, _, _, f = map(int, number)
+
+    return f"{((a+c+f)*9) % 10000:04d}"
+
 
 def formula14(number):
     f = int(number[5])
+
     return f"{f}{f}{(f+1)%10}{(f+1)%10}"
 
+
 def formula_neighbor(number):
-    num_list = [int(x) for x in number]
-    pos4, pos6 = num_list[3], num_list[5]
-    res_front = (pos6 - 1) % 10
-    res_back_start = (pos4 + 2) % 10
-    return f"{res_front}{res_back_start}{(res_back_start+1)%10}{(res_back_start+2)%10}"
+    pos4 = int(number[3])
+    pos6 = int(number[5])
 
-formulas = [
-    ("Formula 1", formula1), ("Formula 2", formula2), ("Formula 3", formula3),
-    ("Formula 4", formula4), ("Formula 5", formula5), ("Formula 6", formula6),
-    ("Formula 7", formula7), ("Formula 8", formula8), ("Formula 9", formula9),
-    ("Formula 10", formula10), ("Formula 11", formula11), ("Formula 12", formula12), 
-    ("Formula 13", formula13), ("Formula 14", formula14), ("Formula Neighbor", formula_neighbor)
-]
+    front = (pos6-1) % 10
+    back = (pos4+2) % 10
 
-def calculate_formula_frequency(formula_outputs, top_n=6):
-    counter = Counter()
-    for result in formula_outputs.values():
-        number = str(result).strip()
-        if len(number) >= 4 and number.isdigit():
-            counter.update(number)
-    ranking = sorted(counter.items(), key=lambda item: (-item[1], int(item[0])))
-    return counter, ranking[:top_n]
-
-# ==========================================
-# 3. SIDEBAR NAVIGATION
-# ==========================================
-st.sidebar.markdown("### เลือกเมนูการใช้งาน")
-menu = st.sidebar.selectbox(
-    "",
-    [
-        "1. อัปเดตผลรางวัล",
-        "2. แสดงประวัติ (History)",
-        "3. ลบข้อมูลงวดล่าสุด",
-        "4. Formula Ranking (จัดอันดับสูตร)",
-        "5. Forward Prediction (ทำนายงวดถัดไป)"
-    ],
-    label_visibility="collapsed"
-)
-
-df_history = load_csv_data(CSV_FILE_MAIN)
-
-latest_base = "048808"
-if df_history is not None and not df_history.empty:
-    col_name = "special" if "special" in df_history.columns else df_history.columns[0]
-    for raw_val in reversed(df_history[col_name].tolist()):
-        v_str = str(raw_val).strip()
-        if v_str.isdigit() and len(v_str) >= 6:
-            latest_base = v_str[:6]
-            break
-
-# ==========================================
-# 4. MAIN CONTENT
-# ==========================================
-if menu == "1. อัปเดตผลรางวัล":
-    st.title("🧠 Lao AI Professional")
-    st.markdown("### 📝 อัปเดตผลรางวัลหวยลาวใหม่")
-    
-    with st.form("update_form"):
-        input_date = st.text_input("ใส่วันที่ (DD/MM/YYYY เช่น 04/11/2569)")
-        input_6d = st.text_input("เลขฐาน / รางวัล 6 หลัก (6 หลักขึ้นไป):")
-        submitted = st.form_submit_button("บันทึกผลรางวัล")
-        
-        if submitted:
-            if len(input_6d) >= 6 and input_6d.isdigit():
-                val_6d = input_6d[:6]
-                val_4d = input_6d[-4:]
-                val_3d = input_6d[-3:]
-                val_2d = input_6d[-2:]
-                
-                new_row = pd.DataFrame([{
-                    "date": input_date,
-                    "special": val_6d,
-                    "first_prize": val_4d,
-                    "top_3": val_3d,
-                    "bottom_2": val_2d
-                }])
-                
-                # 1. บันทึกลงไฟล์หลัก history_lao.csv
-                main_exists = os.path.exists(CSV_FILE_MAIN)
-                new_row.to_csv(CSV_FILE_MAIN, mode="a", header=not main_exists, index=False, encoding="utf-8")
-                
-                # 2. บันทึกลงไฟล์แยกรายวันอัตโนมัติจากวันที่กรอก
-                try:
-                    dt_obj = datetime.strptime(input_date.strip(), "%d/%m/%Y")
-                    day_en = dt_obj.strftime("%A")
-                    day_code = DAY_MAP.get(day_en, "mon")
-                    daily_filename = f"history_lao_{day_code}.csv"
-                    
-                    daily_exists = os.path.exists(daily_filename)
-                    new_row.to_csv(daily_filename, mode="a", header=not daily_exists, index=False, encoding="utf-8")
-                    st.success(f"✅ บันทึกข้อมูลลงในไฟล์หลักและ `{daily_filename}` เรียบร้อยแล้ว!")
-                except Exception:
-                    st.success(f"✅ บันทึกข้อมูลลงไฟล์หลักเรียบร้อยแล้ว!")
-                
-                st.rerun()
-            else:
-                st.error("กรุณากรอกตัวเลขอย่างน้อย 6 หลักขึ้นไป")
-
-elif menu == "2. แสดงประวัติ (History)":
-    st.title("🧠 Lao AI Professional")
-    st.markdown("### 📂 แสดงประวัติข้อมูลสถิติย้อนหลัง (history_lao.csv)")
-    if df_history is not None and not df_history.empty:
-        st.dataframe(df_history, use_container_width=True)
-    else:
-        st.warning("⚠️ ยังไม่พบข้อมูลประวัติ CSV")
-
-elif menu == "3. ลบข้อมูลงวดล่าสุด":
-    st.title("🧠 Lao AI Professional")
-    st.markdown("### 🗑️ ลบข้อมูลงวดล่าสุดออกจากระบบ")
-    if df_history is not None and not df_history.empty:
-        st.write("ข้อมูลแถวล่างสุดปัจจุบัน (งวดล่าสุดที่จะถูกลบ):")
-        st.write(df_history.tail(1))
-        if st.button("❌ ยืนยันลบข้อมูลงวดล่าสุด", type="primary"):
-            df_history = df_history.iloc[:-1].reset_index(drop=True)
-            df_history.to_csv(CSV_FILE_MAIN, index=False, encoding="utf-8")
-            st.success("ลบข้อมูลงวดล่าสุดเรียบร้อยแล้ว!")
-            st.rerun()
-    else:
-        st.warning("ไม่มีข้อมูลให้ลบ")
-
-elif menu == "4. Formula Ranking (จัดอันดับสูตร)":
-    st.title("🧠 Lao AI Professional")
-    st.markdown("### 🏆 Formula Ranking (จัดอันดับความแม่นยำ 15 สูตร)")
-    if df_history is not None and not df_history.empty:
-        formula_scores = {name: 0 for name, _ in formulas}
-        col_name = "special" if "special" in df_history.columns else df_history.columns[0]
-        
-        for idx, row in df_history.iterrows():
-            v_str = str(row[col_name]).strip()
-            if v_str.isdigit() and len(v_str) >= 6:
-                for name, func in formulas:
-                    try:
-                        func(v_str)
-                        formula_scores[name] += 1
-                    except:
-                        pass
-        sorted_formulas = sorted(formula_scores.items(), key=lambda x: x[1], reverse=True)
-        for rank, (fname, score) in enumerate(sorted_formulas, 1):
-            st.write(f"**{rank}. {fname}** — คะแนนประสิทธิภาพ: {score}")
-    else:
-        st.warning("ยังไม่มีข้อมูลสำหรับจัดอันดับสูตร")
-
-elif menu == "5. Forward Prediction (ทำนายงวดถัดไป)":
-    st.title("🧠 Lao AI Professional")
-    st.markdown("### 🔮 Forward Prediction (คำนวณผสานสถิติ 3 แหล่งข้อมูล)")
-    
-    day_selected = st.selectbox(
-        "เลือกวันของงวดถัดไป / วันที่ต้องการวิเคราะห์",
-        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    return (
+        f"{front}"
+        f"{back}"
+        f"{(back+1)%10}"
+        f"{(back+2)%10}"
     )
 
-    # ดึงข้อมืองวดรวมล่าสุดจากแถวล่างสุด
-    latest_all = latest_base
-    if df_history is not None and not df_history.empty:
-        col_name = "special" if "special" in df_history.columns else df_history.columns[0]
-        for raw_val in reversed(df_history[col_name].tolist()):
-            v_str = str(raw_val).strip()
-            if v_str.isdigit() and len(v_str) >= 6:
-                latest_all = v_str[:6]
-                break
 
-    # ดึงข้อมืองวดประจำวันล่าสุดจากแถวล่างสุดของไฟล์รายวัน
-    df_day_specific = load_specific_day_history(day_selected)
-    latest_day = latest_all
-    if df_day_specific is not None and not df_day_specific.empty:
-        col_day = "special" if "special" in df_day_specific.columns else df_day_specific.columns[0]
-        for raw_val in reversed(df_day_specific[col_day].tolist()):
-            v_str = str(raw_val).strip()
-            if v_str.isdigit() and len(v_str) >= 6:
-                latest_day = v_str[:6]
-                break
+# Keep all original 15 formula engines.
+FORMULAS = [
+    ("Formula 1", formula1),
+    ("Formula 2", formula2),
+    ("Formula 3", formula3),
+    ("Formula 4", formula4),
+    ("Formula 5", formula5),
+    ("Formula 6", formula6),
+    ("Formula 7", formula7),
+    ("Formula 8", formula8),
+    ("Formula 9", formula9),
+    ("Formula 10", formula10),
+    ("Formula 11", formula11),
+    ("Formula 12", formula12),
+    ("Formula 13", formula13),
+    ("Formula 14", formula14),
+    ("Formula 15 - Neighbor", formula_neighbor)
+]
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.info(f"📊 **งวดรวมล่าสุด (`history_lao.csv`)**\n\nเลขฐาน 6 หลัก: `{latest_all}`\n\n3 ตัว/4 ตัว: `{latest_all[-3:]}` / `{latest_all[-4:]}`")
-    with col_b:
-        st.success(f"📌 **งวดประจำวัน {day_selected} ล่าสุด**\n\nเลขฐาน 6 หลัก: `{latest_day}`\n\n3 ตัว/4 ตัว: `{latest_day[-3:]}` / `{latest_day[-4:]}`")
 
-    daily_6 = DAILY_NUMBERS.get(day_selected, "000000")
-    st.write(f"🎯 **ชุดเลขประจำวัน ({day_selected}):** `{daily_6}`")
+# =====================================================
+# 5. FORMULA CALCULATION
+# =====================================================
 
-    display_count = st.radio("เลือกจำนวนตัวเลขความถี่สูงสุดที่ต้องการแสดง:", [5, 6], index=1, horizontal=True)
+def calculate_all_formulas(base_number):
 
-    if st.button("🚀 ประมวลผลทำนายเลข (ผสาน 3 ส่วน)", type="primary", use_container_width=True):
-        if day_selected == "Saturday":
-            st.warning("⚠️ [AI WARNING] วันเสาร์มีสถิติการออกเลขเบิ้ลหรือหามสูง แนะนำให้ระวังเป็นพิเศษ!")
+    outputs = {}
+    errors = {}
 
-        outputs_all = {}
-        outputs_day = {}
-        
-        for name, func in formulas:
-            try:
-                res_a = str(func(latest_all)).strip()
-                if res_a.isdigit():
-                    outputs_all[name] = res_a.zfill(4)[-4:]
-                res_d = str(func(latest_day)).strip()
-                if res_d.isdigit():
-                    outputs_day[name] = res_d.zfill(4)[-4:]
-            except Exception:
-                pass
+    for name, function in FORMULAS:
 
-        digit_scores = {str(i): 0.0 for i in range(10)}
+        try:
+            result = str(function(base_number)).strip()
 
-        # 1. เลขประจำวันให้โบนัสสูงสุด (+2.0 แต้ม)
-        for d in daily_6:
-            digit_scores[d] += 2.0
+            if not re.fullmatch(r"[0-9]{1,4}", result):
+                raise ValueError(
+                    f"Invalid formula output: {result}"
+                )
 
-        # 2. คะแนนจากสูตรของงวดรวมล่าสุด
-        counter_all, _ = calculate_formula_frequency(outputs_all, top_n=10)
-        for num_str, count in counter_all.items():
-            for d in num_str:
-                digit_scores[d] += float(count) * 0.3
+            outputs[name] = result.zfill(4)
 
-        # 3. คะแนนจากสูตรของงวดรายวันล่าสุด
-        counter_day, _ = calculate_formula_frequency(outputs_day, top_n=10)
-        for num_str, count in counter_day.items():
-            for d in num_str:
-                digit_scores[d] += float(count) * 0.3
+        except Exception as error:
+            errors[name] = str(error)
 
-        sorted_digits = sorted(digit_scores.keys(), key=lambda k: digit_scores[k], reverse=True)
-        top_digits_merged = [(d, digit_scores[d]) for d in sorted_digits[:display_count]]
-        digits_only = [item[0] for item in top_digits_merged]
+    return outputs, errors
 
-        st.markdown(f"### 📊 ผลลัพธ์เลขเด่นผสาน 3 ส่วน ({day_selected})")
-        
-        if top_digits_merged:
-            html_parts = ['<div class="grid-container">']
-            for num, score in top_digits_merged:
-                html_parts.append(f'<div class="stat-card"><div class="stat-num">{num}</div><div class="stat-count">{score:.1f} แต้ม</div></div>')
-            html_parts.append('</div>')
-            st.markdown("".join(html_parts), unsafe_allow_html=True)
+
+# =====================================================
+# 6. HYBRID FREQUENCY ENGINE
+# Formula outputs + Daily Number
+# =====================================================
+
+def calculate_frequency(formula_outputs, daily_number):
+
+    formula_counter = Counter()
+    daily_counter = Counter()
+
+    # Count digits from all formula outputs
+    for result in formula_outputs.values():
+
+        if re.fullmatch(r"[0-9]{4}", result):
+            formula_counter.update(result)
+
+    # Count digits from Daily Number
+    if re.fullmatch(r"[0-9]+", daily_number):
+        daily_counter.update(daily_number)
+
+    # Hybrid total
+    combined_counter = formula_counter + daily_counter
+
+    ranking = sorted(
+        combined_counter.items(),
+        key=lambda x: (-x[1], int(x[0]))
+    )
+
+    return (
+        formula_counter,
+        daily_counter,
+        combined_counter,
+        ranking
+    )
+
+
+# =====================================================
+# 7. COMBINATION ENGINE
+# Generate 5D, 4D, 3D, 2D + REVERSE
+# =====================================================
+
+def generate_combinations(digits, length, include_reverse=True):
+
+    if len(digits) < length:
+        return []
+
+    results = []
+
+    for group in combinations(digits, length):
+
+        number = "".join(group)
+
+        results.append(number)
+
+        # Reverse number
+        if include_reverse:
+            reverse_number = number[::-1]
+
+            if reverse_number != number:
+                results.append(reverse_number)
+
+    # Remove duplicates, preserve order
+    return list(dict.fromkeys(results))
+
+
+# =====================================================
+# 8. DISPLAY HELPERS
+# =====================================================
+
+def display_number_cards(ranking, formula_counter, daily_counter):
+
+    html = ['<div class="grid-container">']
+
+    for digit, total in ranking:
+
+        formula_count = formula_counter[digit]
+        daily_count = daily_counter[digit]
+
+        html.append(f"""
+        <div class="stat-card">
+            <div class="stat-num">{digit}</div>
+            <div class="stat-count">{total} ครั้ง</div>
+            <div style="font-size:10px;color:#64748b;margin-top:5px;">
+                สูตร {formula_count} + Daily {daily_count}
+            </div>
+        </div>
+        """)
+
+    html.append("</div>")
+
+    st.markdown(
+        "".join(html),
+        unsafe_allow_html=True
+    )
+
+
+def display_number_group(title, numbers):
+
+    if not numbers:
+        st.info(f"{title}: ไม่มีชุดตัวเลข")
+        return
+
+    badges = "".join(
+        f'<span class="badge-number">{number}</span>'
+        for number in numbers
+    )
+
+    st.markdown(f"""
+    <div class="pair-box">
+        <div class="pair-title">
+            {title} ({len(numbers)} ชุด)
+        </div>
+        {badges}
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# =====================================================
+# 9. MAIN STREAMLIT INTERFACE
+# =====================================================
+
+st.title("🧠 LAO AI PROFESSIONAL")
+
+st.caption(
+    f"{VERSION} | {len(FORMULAS)} Formula Engines"
+)
+
+st.markdown("---")
+
+# -----------------------------------------------------
+# Base Number
+# -----------------------------------------------------
+
+st.subheader("🔢 เลขฐาน")
+
+base_input = st.text_input(
+    "ป้อนเลขฐาน 6 หลัก",
+    value="863206",
+    max_chars=6,
+    placeholder="เช่น 863206"
+)
+
+# -----------------------------------------------------
+# Daily Number Selection
+# -----------------------------------------------------
+
+st.subheader("📅 Daily Number Engine")
+
+day_options = list(DAILY_NUMBERS.keys())
+
+default_index = (
+    day_options.index(CURRENT_DAY)
+    if CURRENT_DAY in day_options
+    else 0
+)
+
+selected_day = st.selectbox(
+    "เลือกวันสำหรับวิเคราะห์",
+    day_options,
+    index=default_index,
+    format_func=lambda x: DAY_NAMES_TH[x]
+)
+
+daily_number = get_daily_number(selected_day)
+
+st.info(
+    f"Daily Number: {daily_number} | "
+    f"{DAY_NAMES_TH[selected_day]}"
+)
+
+# -----------------------------------------------------
+# Display Settings
+# -----------------------------------------------------
+
+st.subheader("⚙️ Analysis Settings")
+
+display_count = st.radio(
+    "จำนวนเลขเด่นที่ต้องการแสดง",
+    [5, 6],
+    index=1,
+    horizontal=True
+)
+
+include_reverse = st.checkbox(
+    "เปิดใช้งานเลขกลับ",
+    value=True
+)
+
+# -----------------------------------------------------
+# Run Analysis
+# -----------------------------------------------------
+
+if st.button(
+    "🚀 ANALYZE LAO LOTTERY",
+    type="primary",
+    use_container_width=True
+):
+
+    if not validate_number(base_input):
+
+        st.error(
+            "กรุณากรอกเลขฐานให้ครบ 6 หลัก "
+            "และใช้ตัวเลข 0-9 เท่านั้น"
+        )
+
+    else:
+
+        # =============================================
+        # A. FORMULA ENGINE
+        # =============================================
+
+        outputs, errors = calculate_all_formulas(
+            base_input
+        )
+
+        # =============================================
+        # B. HYBRID FREQUENCY ENGINE
+        # =============================================
+
+        (
+            formula_counter,
+            daily_counter,
+            combined_counter,
+            ranking
+        ) = calculate_frequency(
+            outputs,
+            daily_number
+        )
+
+        top_digits = ranking[:display_count]
+
+        digits_only = [
+            digit for digit, count in top_digits
+        ]
+
+        # =============================================
+        # C. SUMMARY
+        # =============================================
+
+        st.markdown("---")
+        st.header("📊 ANALYSIS REPORT")
+
+        st.success(
+            f"วิเคราะห์เลขฐาน {base_input} สำเร็จ"
+        )
+
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric(
+            "สูตรสำเร็จ",
+            f"{len(outputs)}/15"
+        )
+
+        col2.metric(
+            "จำนวนหลักจากสูตร",
+            len(outputs)*4
+        )
+
+        col3.metric(
+            "Daily Number",
+            len(daily_number)
+        )
+
+        if errors:
+
+            st.warning(
+                f"พบสูตรผิดพลาด {len(errors)} สูตร"
+            )
+
+            for name, error in errors.items():
+                st.error(f"{name}: {error}")
+
+        # =============================================
+        # D. FORMULA OUTPUT TABLE
+        # =============================================
+
+        st.subheader("1. ผลลัพธ์จาก 15 สูตร")
+
+        formula_rows = [
+            {
+                "Formula": name,
+                "Result": result
+            }
+            for name, result in outputs.items()
+        ]
+
+        st.dataframe(
+            formula_rows,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        # =============================================
+        # E. DAILY NUMBER
+        # =============================================
+
+        st.subheader("2. Daily Number")
+
+        st.markdown(
+            f"""
+            <div class="pair-box">
+                <div class="pair-title">
+                    {DAY_NAMES_TH[selected_day]}
+                </div>
+                <span class="badge-number badge-highlight">
+                    {daily_number}
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # =============================================
+        # F. HYBRID DIGIT FREQUENCY
+        # =============================================
+
+        st.subheader(
+            f"3. เลขที่ปรากฏบ่อยจาก 15 สูตร + Daily Number"
+        )
+
+        display_number_cards(
+            top_digits,
+            formula_counter,
+            daily_counter
+        )
+
+        total_digits = (
+            len(outputs)*4 + len(daily_number)
+        )
+
+        st.caption(
+            f"รวมจำนวนหลักที่นำมาวิเคราะห์: "
+            f"{total_digits} หลัก "
+            f"({len(outputs)*4} หลักจากสูตร + "
+            f"{len(daily_number)} หลักจาก Daily Number)"
+        )
+
+        # =============================================
+        # G. FULL FREQUENCY TABLE
+        # =============================================
+
+        with st.expander("ดูความถี่เลข 0-9 ทั้งหมด"):
+
+            frequency_rows = []
+
+            for digit in range(10):
+
+                key = str(digit)
+
+                frequency_rows.append({
+                    "เลข": key,
+                    "Formula Frequency": formula_counter[key],
+                    "Daily Frequency": daily_counter[key],
+                    "Total Frequency": combined_counter[key]
+                })
+
+            frequency_rows.sort(
+                key=lambda x: (
+                    -x["Total Frequency"],
+                    int(x["เลข"])
+                )
+            )
+
+            st.dataframe(
+                frequency_rows,
+                use_container_width=True,
+                hide_index=True
+            )
+
+        # =============================================
+        # H. TOP NUMBER GROUPS
+        # =============================================
+
+        st.markdown("---")
+
+        st.subheader("4. เลขเด่นจากการจัดอันดับ")
+
+        main_group = digits_only[:3]
+        secondary_group = digits_only[3:6]
+
+        remaining_group = [
+            str(i)
+            for i in range(10)
+            if str(i) not in digits_only
+        ]
+
+        st.write(
+            "**กลุ่มเด่น:** "
+            + " - ".join(main_group)
+        )
+
+        st.write(
+            "**กลุ่มรอง:** "
+            + (
+                " - ".join(secondary_group)
+                if secondary_group else "-"
+            )
+        )
+
+        st.write(
+            "**เลขอื่น ๆ:** "
+            + (
+                " - ".join(remaining_group)
+                if remaining_group else "-"
+            )
+        )
+
+        # =============================================
+        # I. SPECIAL TOP PICKS
+        # =============================================
+
+        st.markdown("---")
+
+        st.subheader("5. TOP PICKS")
 
         if len(digits_only) >= 3:
-            st.markdown("---")
-            st.markdown("### 🎯 ชุดจับคู่เลขเด่น (จากผลการวิเคราะห์ผสาน)")
 
-            pairs_2d = [f"{a}{b}" for a, b in combinations(digits_only, 2)]
-            pairs_3d = [f"{a}{b}{c}" for a, b, c in combinations(digits_only, 3)]
-            
-            top_3_straight = "".join(digits_only[:3])
-            top_2_straight = "".join(digits_only[:2])
+            top_3 = "".join(digits_only[:3])
+            top_2 = "".join(digits_only[:2])
 
-            st.markdown(f"""
-            <div class="pair-box" style="border-left-color: #0284c7; background-color: #e0f2fe;">
-                <div class="pair-title">🔹 ชุดเน้นพิเศษ (Top Pick จากอันดับ 1-3)</div>
-                <span class="badge badge-highlight">3 ตัว: {top_3_straight}</span>
-                <span class="badge badge-highlight">2 ตัว: {top_2_straight}</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            badges_2d = "".join([f'<span class="badge">{p}</span>' for p in pairs_2d])
             st.markdown(f"""
             <div class="pair-box">
-                <div class="pair-title">🎲 ชุด 2 ตัวจับคู่วิน ({len(pairs_2d)} ชุด)</div>
-                {badges_2d}
+                <div class="pair-title">
+                    ⭐ ชุดเน้นพิเศษ
+                </div>
+                <span class="badge-number badge-highlight">
+                    3 ตัว: {top_3}
+                </span>
+                <span class="badge-number badge-highlight">
+                    2 ตัว: {top_2}
+                </span>
             </div>
             """, unsafe_allow_html=True)
 
-            badges_3d = "".join([f'<span class="badge">{p}</span>' for p in pairs_3d])
-            st.markdown(f"""
-            <div class="pair-box">
-                <div class="pair-title">🎲 ชุด 3 ตัวจับคู่วิน ({len(pairs_3d)} ชุด)</div>
-                {badges_3d}
-            </div>
-            """, unsafe_allow_html=True)
+        # =============================================
+        # J. COMBINATION ENGINE
+        # =============================================
+
+        st.markdown("---")
+
+        st.header("🎯 COMBINATION ENGINE")
+
+        st.caption(
+            "สร้างชุดจากเลขเด่นที่จัดอันดับ "
+            "พร้อมเลขกลับตามที่เลือก"
+        )
+
+        lengths = [5, 4, 3, 2]
+
+        for length in lengths:
+
+            generated = generate_combinations(
+                digits_only,
+                length,
+                include_reverse
+            )
+
+            display_number_group(
+                f"🎲 ชุด {length} ตัว",
+                generated
+            )
+
+        # =============================================
+        # K. FINAL SUMMARY
+        # =============================================
+
+        st.markdown("---")
+
+        st.subheader("6. FINAL SUMMARY")
+
+        st.write(f"**เลขฐาน:** {base_input}")
+
+        st.write(
+            f"**วันวิเคราะห์:** {DAY_NAMES_TH[selected_day]}"
+        )
+
+        st.write(
+            f"**Daily Number:** {daily_number}"
+        )
+
+        st.write(
+            "**เลขเด่น:** "
+            + " - ".join(digits_only)
+        )
+
+        st.write(
+            f"**จำนวนสูตรที่สำเร็จ:** {len(outputs)}/15"
+        )
+
+        st.write(
+            f"**จำนวนหลักที่วิเคราะห์:** {total_digits}"
+        )
+
+        st.caption(
+            "หมายเหตุ: ระบบนี้เป็นเครื่องมือวิเคราะห์ "
+            "ความถี่และความสัมพันธ์ของตัวเลข "
+            "ไม่ใช่การรับประกันผลรางวัล"
+        )
+
+else:
+
+    st.markdown("---")
+
+    st.info(
+        "กรอกเลขฐาน เลือกวัน แล้วกด "
+        "ANALYZE LAO LOTTERY เพื่อเริ่มวิเคราะห์"
+    )
+
+    st.caption(
+        "LAO AI PROFESSIONAL v4.1"
+    )
