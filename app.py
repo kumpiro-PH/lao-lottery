@@ -1,4 +1,3 @@
-
 import streamlit as st
 from datetime import datetime
 from collections import Counter
@@ -494,11 +493,12 @@ st.markdown("---")
 
 st.subheader("🔢 เลขฐาน")
 
+# อัปเดตค่าเริ่มต้นตรงนี้เป็นเลขฐานงวดล่าสุด 048808
 base_input = st.text_input(
     "ป้อนเลขฐาน 6 หลัก",
-    value="863206",
+    value="048808",
     max_chars=6,
-    placeholder="เช่น 863206"
+    placeholder="เช่น 048808"
 )
 
 # -----------------------------------------------------
