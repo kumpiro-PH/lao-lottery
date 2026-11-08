@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (5-DAY CSV SYNC + TOP 4)"
+VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (5-DAY CSV SYNC + DAILY ENGINE)"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -166,8 +166,8 @@ def save_analysis_history(day, base_number, top_3_val, bottom_2_val):
     today_str = datetime.now().strftime("%d/%m/%Y")
     new_record = {
         "date": today_str,
-        "special": str(base_number),
-        "first_prize": str(base_number)[3:],
+        "special": str(base_number).zfill(6),
+        "first_prize": str(base_number)[3:].zfill(3),
         "top_3": str(top_3_val),
         "bottom_2": str(bottom_2_val)
     }
@@ -380,7 +380,15 @@ selected_day = st.selectbox(
 )
 
 daily_number = get_daily_number(selected_day)
-st.info(f"Daily Number: **{daily_number}** | ประจำ{DAY_NAMES_TH[selected_day]} | ไฟล์: `{CSV_FILE_MAP[selected_day]}`")
+
+# แสดงข้อมูลเลขประจำวันและไฟล์ CSV ประจำวันอย่างชัดเจน
+st.markdown(f"""
+<div class="pair-box">
+    <div class="pair-title">📌 ข้อมูลประจำ{DAY_NAMES_TH[selected_day]}</div>
+    <div><b>Daily Number:</b> <span class="badge-number badge-highlight">{daily_number}</span></div>
+    <div style="margin-top:5px; font-size:13px; color:#64748b;">แหล่งข้อมูล: <code>{CSV_FILE_MAP[selected_day]}</code></div>
+</div>
+""", unsafe_allow_html=True)
 
 st.subheader("🔢 เลขฐาน")
 latest_base = get_latest_base_number(selected_day)
@@ -405,7 +413,6 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         top_digits = ranking[:display_count]
         digits_only = [digit for digit, count in top_digits]
 
-        # ค่าสำหรับบันทึกลง CSV (ใช้ 3 ตัว และ 2 ตัว)
         top_3_val = "".join(digits_only[:3]) if len(digits_only) >= 3 else ""
         bottom_2_val = "".join(digits_only[:2]) if len(digits_only) >= 2 else ""
 
@@ -466,9 +473,6 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         st.write("**กลุ่มรอง:** " + (" - ".join(secondary_group) if secondary_group else "-"))
         st.write("**เลขอื่น ๆ:** " + (" - ".join(remaining_group) if remaining_group else "-"))
 
-        # =====================================================
-        # 5. TOP PICKS (เพิ่ม 4 ตัว)
-        # =====================================================
         st.markdown("---")
         st.subheader("5. TOP PICKS")
         if len(digits_only) >= 4:
