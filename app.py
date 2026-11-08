@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (5-DAY CSV SYNC + LATEST BASE DISPLAY)"
+VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (5-DAY CSV SYNC + CUSTOM BASE)"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -146,7 +146,6 @@ def load_day_history(day):
         try:
             df = pd.read_csv(filename, dtype=str)
             if not df.empty and "date" in df.columns:
-                # แปลงวันที่เพื่อเรียงลำดับจากใหม่ไปเก่าอย่างปลอดภัย
                 df["_temp_date"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors="coerce")
                 df = df.sort_values(by="_temp_date", ascending=False, na_position="last")
                 df = df.drop(columns=["_temp_date"])
@@ -410,13 +409,14 @@ with col_info2:
     <div class="pair-box">
         <div class="pair-title">🔢 เลขฐานล่าสุดจาก CSV</div>
         <div><span class="badge-number badge-highlight">{latest_base}</span></div>
-        <div style="margin-top:5px; font-size:12px; color:#64748b;">สถานะ: พร้อมใช้งานอัตโนมัติ</div>
+        <div style="margin-top:5px; font-size:12px; color:#64748b;">สถานะ: โหลดเป็นค่าเริ่มต้น</div>
     </div>
     """, unsafe_allow_html=True)
 
 st.subheader("🔢 เลขฐาน")
+# ให้ช่องนี้ใช้ค่าล่าสุดจาก CSV เป็นค่าเริ่มต้น แต่ผู้ใช้สามารถพิมพ์แก้ไข/กำหนดเลขฐานเองได้อิสระ
 base_input = st.text_input(
-    f"ป้อนเลขฐาน 6 หลัก (ดึงค่าล่าสุดจาก `{CSV_FILE_MAP[selected_day]}` ให้อัตโนมัติ)",
+    f"ป้อนเลขฐาน 6 หลัก (ดึงค่าล่าสุดจาก `{CSV_FILE_MAP[selected_day]}` เป็นค่าเริ่มต้น สามารถแก้ไขได้)",
     value=latest_base,
     max_chars=6,
     placeholder="เช่น 048808"
@@ -442,7 +442,7 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
 
         st.markdown("---")
         st.header("📊 ANALYSIS REPORT")
-        st.success(f"วิเคราะห์และบันทึกลง `{CSV_FILE_MAP[selected_day]}` เรียบร้อยแล้ว")
+        st.success(f"วิเคราะห์และบันทึกเลขฐาน `{base_input}` ลง `{CSV_FILE_MAP[selected_day]}` เรียบร้อยแล้ว")
 
         col1, col2, col3 = st.columns(3)
         col1.metric("สูตรสำเร็จ", f"{len(outputs)}/15")
