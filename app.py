@@ -1,7 +1,7 @@
 import streamlit as st
 from datetime import datetime
 from collections import Counter
-from itertools import permutations
+from itertools import combinations
 import re
 import pandas as pd
 import os
@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (SMART 10-LIMIT ENGINE)"
+VERSION = "4.1 HYBRID DAILY & SMART COMBINATION ENGINE"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -328,7 +328,7 @@ FORMULAS = [
 
 
 # =====================================================
-# 5. CALCULATION & PERMUTATION
+# 5. SMART COMBINATION ENGINE (คัดเลือกเฉพาะชุดเน้นสูงสุด 10 ชุด)
 # =====================================================
 
 def calculate_all_formulas(base_number):
@@ -356,18 +356,26 @@ def calculate_frequency(formula_outputs, daily_number):
     ranking = sorted(combined_counter.items(), key=lambda x: (-x[1], int(x[0])))
     return formula_counter, daily_counter, combined_counter, ranking
 
-def generate_combinations(digits, length, include_reverse=True):
+def generate_smart_combinations(digits, length, max_results=10):
+    """
+    Smart Combination: คัดเลือกเฉพาะชุดตัวเลขเด่นที่สำคัญ (สูงสุด 10 ชุด) 
+    โดยจัดอันดับจากความสำคัญของตัวเลขเด่น ไม่สร้าง Permutation ทั้งหมด
+    """
     if len(digits) < length:
         return []
+    
     results = []
-    for group in permutations(digits, length):
-        number = "".join(group)
-        results.append(number)
-        if include_reverse:
-            reverse_number = number[::-1]
-            if reverse_number != number:
-                results.append(reverse_number)
-    return list(dict.fromkeys(results))
+    # นำ digits ที่จัดอันดับความถี่แล้วมาจัดกลุ่มผสมกันอย่างฉลาด (Smart Combinations)
+    for comb in combinations(digits, length):
+        num_str = "".join(comb)
+        results.append(num_str)
+        rev_str = num_str[::-1]
+        if rev_str != num_str and len(results) < max_results:
+            results.append(rev_str)
+        if len(results) >= max_results:
+            break
+            
+    return list(dict.fromkeys(results))[:max_results]
 
 
 # =====================================================
@@ -390,21 +398,14 @@ def display_number_cards(ranking, formula_counter, daily_counter):
     html.append('</div>')
     st.html("".join(html))
 
-# ปรับปรุง display_number_group รองรับ Smart Selection (จำกัด 10 ชุดแรก)
-def display_number_group(title, numbers, limit=10, show_all=False):
+def display_number_group(title, numbers):
     if not numbers:
         st.info(f"{title}: ไม่มีชุดตัวเลข")
         return
-    
-    total_count = len(numbers)
-    display_list = numbers if (show_all or total_count <= limit) else numbers[:limit]
-    
-    badges = "".join(f'<span class="badge-number">{number}</span>' for number in display_list)
-    subtitle_info = f" (แสดง {len(display_list)} จากทั้งหมด {total_count} ชุด)" if total_count > limit and not show_all else f" ({total_count} ชุด)"
-    
+    badges = "".join(f'<span class="badge-number">{number}</span>' for number in numbers)
     st.markdown(f"""
     <div class="pair-box">
-        <div class="pair-title">{title}{subtitle_info}</div>
+        <div class="pair-title">{title} ({len(numbers)} ชุดเด่น)</div>
         {badges}
     </div>
     """, unsafe_allow_html=True)
@@ -465,7 +466,6 @@ base_input = st.text_input(
 
 st.subheader("⚙️ Analysis Settings")
 display_count = st.radio("จำนวนเลขเด่นที่ต้องการแสดง", [5, 6], index=1, horizontal=True)
-include_reverse = st.checkbox("เปิดใช้งานเลขกลับ (Permutation Engine)", value=True)
 
 if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=True):
     if not validate_number(base_input):
@@ -509,15 +509,12 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         st.write("**เลขอื่น ๆ:** " + (" - ".join(remaining_group) if remaining_group else "-"))
 
         st.markdown("---")
-        st.header("🎯 COMBINATION & PERMUTATION ENGINE")
-        
-        # ตัวเลือก Smart Filter จำกัด 10 ชุด
-        show_all_combos = st.checkbox("แสดงชุดตัวเลขทั้งหมด (ยกเลิกจำกัด 10 ชุด)", value=False)
+        st.header("🎯 SMART COMBINATION ENGINE")
         
         lengths = [5, 4, 3, 2]
         for length in lengths:
-            generated = generate_combinations(digits_only, length, include_reverse)
-            display_number_group(f"🎲 ชุด {length} ตัว (สลับตำแหน่ง)", generated, limit=10, show_all=show_all_combos)
+            smart_combos = generate_smart_combinations(digits_only, length, max_results=10)
+            display_number_group(f"🎲 ชุด {length} ตัว (Smart Selection)", smart_combos)
 
         st.markdown("---")
         st.header("📊 ANALYSIS REPORT")
@@ -570,4 +567,4 @@ else:
     else:
         st.info(f"ยังไม่มีประวัติในไฟล์ `{CSV_FILE_MAP[selected_day]}`")
 
-    st.caption("LAO AI PROFESSIONAL v4.1 (Smart 10-Limit Permutation Engine)")
+    st.caption("LAO AI PROFESSIONAL v4.1 (Smart Combination Engine)")
