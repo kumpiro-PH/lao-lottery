@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (CUSTOMIZED LAYOUT)"
+VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (REORDERED TOP PICKS & RANKING)"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -475,12 +475,9 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         save_analysis_history(selected_day, base_input, top_3_val, bottom_2_val)
 
         st.markdown("---")
-        
-        # ย้าย "3. เลขที่ปรากฏบ่อยจาก 15 สูตร + Daily Number" มาวางใต้ Analysis Settings ทันที
         st.subheader("3. เลขที่ปรากฏบ่อยจาก 15 สูตร + Daily Number")
         display_number_cards(top_digits, formula_counter, daily_counter)
 
-        # ย้าย "5. TOP PICKS" มาวางไว้ต่อกันทันที
         st.subheader("5. TOP PICKS")
         if len(digits_only) >= 4:
             top_4 = "".join(digits_only[:4])
@@ -494,6 +491,16 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
                 <span class="badge-number badge-highlight">2 ตัว: {top_2}</span>
             </div>
             """, unsafe_allow_html=True)
+
+        # ย้าย "4. เลขเด่นจากการจัดอันดับ" มาวางไว้ใต้ 5. TOP PICKS ตามต้องการ
+        st.subheader("4. เลขเด่นจากการจัดอันดับ")
+        main_group = digits_only[:3]
+        secondary_group = digits_only[3:6]
+        remaining_group = [str(i) for i in range(10) if str(i) not in digits_only]
+
+        st.write("**กลุ่มเด่น:** " + " - ".join(main_group))
+        st.write("**กลุ่มรอง:** " + (" - ".join(secondary_group) if secondary_group else "-"))
+        st.write("**เลขอื่น ๆ:** " + (" - ".join(remaining_group) if remaining_group else "-"))
 
         st.markdown("---")
         st.header("🎯 COMBINATION & PERMUTATION ENGINE")
@@ -519,15 +526,6 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         st.subheader("1. ผลลัพธ์จาก 15 สูตร")
         formula_rows = [{"Formula": name, "Result": result} for name, result in outputs.items()]
         st.dataframe(formula_rows, use_container_width=True, hide_index=True)
-
-        st.subheader("4. เลขเด่นจากการจัดอันดับ")
-        main_group = digits_only[:3]
-        secondary_group = digits_only[3:6]
-        remaining_group = [str(i) for i in range(10) if str(i) not in digits_only]
-
-        st.write("**กลุ่มเด่น:** " + " - ".join(main_group))
-        st.write("**กลุ่มรอง:** " + (" - ".join(secondary_group) if secondary_group else "-"))
-        st.write("**เลขอื่น ๆ:** " + (" - ".join(remaining_group) if remaining_group else "-"))
 
         with st.expander("ดูความถี่เลข 0-9 ทั้งหมด"):
             frequency_rows = []
@@ -562,4 +560,4 @@ else:
     else:
         st.info(f"ยังไม่มีประวัติในไฟล์ `{CSV_FILE_MAP[selected_day]}`")
 
-    st.caption("LAO AI PROFESSIONAL v4.1 (Customized Layout)")
+    st.caption("LAO AI PROFESSIONAL v4.1 (Reordered Ranking Layout)")
