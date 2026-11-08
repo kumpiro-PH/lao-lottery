@@ -19,7 +19,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 FINAL GITHUB API & SEPARATE ENGINE"
+VERSION = "4.1 FINAL FIXED DATE SORTING ENGINE"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -151,6 +151,29 @@ def get_daily_number(day):
 def validate_number(number):
     return bool(re.fullmatch(r"[0-9]{6}", str(number)))
 
+# ฟังก์ชันแปลงและจัดรูปแบบวันที่ให้เป็น พ.ศ. เสมอเพื่อความ 
+def normalize_date_format(date_str):
+    date_str = date_str.strip()
+    parts = date_str.split('/')
+    if len(parts) == 3:
+        d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+        if y < 2400: # ถ้ากรอก ค.ศ. มา (เช่น 2026) แปลงเป็น พ.ศ. (2569)
+            y += 543
+        return f"{d:02d}/{m:02d}/{y}"
+    return date_str
+
+def parse_date_for_sort(date_str):
+    try:
+        parts = str(date_str).strip().split('/')
+        if len(parts) == 3:
+            d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+            if y > 2400: # แปลง พ.ศ. เป็น ค.ศ. ชั่วคราวเพื่อให้ datetime เปรียบเทียบได้ถูกต้อง
+                y -= 543
+            return datetime(y, m, d)
+    except Exception:
+        pass
+    return datetime(1900, 1, 1)
+
 def load_day_history_from_github(day):
     filename = CSV_FILE_MAP.get(day)
     github_token = st.secrets.get("GITHUB_TOKEN")
@@ -169,7 +192,7 @@ def load_day_history_from_github(day):
                 content_decoded = base64.b64decode(file_data["content"]).decode("utf-8")
                 df = pd.read_csv(StringIO(content_decoded), dtype=str)
                 if not df.empty and "date" in df.columns:
-                    df["_temp_date"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors="coerce")
+                    df["_temp_date"] = df["date"].apply(parse_date_for_sort)
                     df = df.sort_values(by="_temp_date", ascending=False, na_position="last")
                     df = df.drop(columns=["_temp_date"])
                 return df
@@ -208,7 +231,7 @@ def get_global_latest_base_number():
             for _, row in df.iterrows():
                 special_val = str(row["special"]).zfill(6)
                 if validate_number(special_val):
-                    dt_val = pd.to_datetime(row["date"], format="%d/%m/%Y", errors="coerce")
+                    dt_val = parse_date_for_sort(row["date"])
                     all_records.append({
                         "date": dt_val,
                         "special": special_val
@@ -225,6 +248,8 @@ def save_history_to_github(target_day, date_str, base_number):
         return False
     
     clean_num = str(base_number).zfill(6)
+    normalized_date = normalize_date_format(date_str)
+    
     github_token = st.secrets.get("GITHUB_TOKEN")
     repo_name = st.secrets.get("GITHUB_REPO")
     branch = st.secrets.get("GITHUB_BRANCH", "main")
@@ -250,7 +275,7 @@ def save_history_to_github(target_day, date_str, base_number):
         existing_df = pd.read_csv(StringIO(content_decoded), dtype=str)
         
     new_record = {
-        "date": date_str,
+        "date": normalized_date,
         "special": clean_num,
         "first_prize": clean_num[3:].zfill(3),
         "top_3": clean_num[4:].zfill(2),
@@ -258,13 +283,13 @@ def save_history_to_github(target_day, date_str, base_number):
     }
     
     if not existing_df.empty and "date" in existing_df.columns:
-        existing_df = existing_df[existing_df["date"] != date_str]
+        existing_df = existing_df[existing_df["date"] != normalized_date]
         
     df_new = pd.DataFrame([new_record])
     updated_df = pd.concat([df_new, existing_df], ignore_index=True)
     
     if "date" in updated_df.columns:
-        updated_df["_temp_date"] = pd.to_datetime(updated_df["date"], format="%d/%m/%Y", errors="coerce")
+        updated_df["_temp_date"] = updated_df["date"].apply(parse_date_for_sort)
         updated_df = updated_df.sort_values(by="_temp_date", ascending=False, na_position="last")
         updated_df = updated_df.drop(columns=["_temp_date"])
         
@@ -272,7 +297,7 @@ def save_history_to_github(target_day, date_str, base_number):
     encoded_content = base64.b64encode(csv_string.encode("utf-8")).decode("utf-8")
     
     payload = {
-        "message": f"Update {filename} for {date_str} via Streamlit App",
+        "message": f"Update {filename} for {normalized_date} via Streamlit App",
         "content": encoded_content,
         "branch": branch
     }
@@ -478,7 +503,7 @@ daily_number = get_daily_number(selected_day)
 latest_base_for_selected_day = get_latest_base_number_for_day(selected_day)
 
 today_default = datetime.now().strftime("%d/%m/%Y")
-input_date_str = st.text_input("ระบุวันที่สำหรับบันทึกข้อมูล (รูปแบบ DD/MM/YYYY)", value=today_default, placeholder="เช่น 08/11/2026")
+input_date_str = st.text_input("ระบุวันที่สำหรับบันทึกข้อมูล (รูปแบบ DD/MM/YYYY)", value=today_default, placeholder="เช่น 08/11/2569")
 
 col_info1, col_info2 = st.columns(2)
 with col_info1:
@@ -622,4 +647,4 @@ else:
     else:
         st.info(f"ยังไม่มีประวัติในไฟล์ `{CSV_FILE_MAP[selected_day]}`")
 
-    st.caption("LAO AI PROFESSIONAL v4.1 (Final GitHub API Sync Engine)")
+    st.caption("LAO AI PROFESSIONAL v4.1 (Fixed Date Sorting & GitHub API)")
