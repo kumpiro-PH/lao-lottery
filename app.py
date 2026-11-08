@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (5-DAY CSV SYNC + DAILY ENGINE)"
+VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (5-DAY CSV SYNC + LATEST BASE DISPLAY)"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -146,7 +146,7 @@ def load_day_history(day):
         try:
             df = pd.read_csv(filename, dtype=str)
             if not df.empty and "date" in df.columns:
-                # แปลงวันที่จากรูปแบบ DD/MM/YYYY เป็น datetime เพื่อเรียงลำดับจากใหม่ไปเก่า
+                # แปลงวันที่เพื่อเรียงลำดับจากใหม่ไปเก่าอย่างปลอดภัย
                 df["_temp_date"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors="coerce")
                 df = df.sort_values(by="_temp_date", ascending=False, na_position="last")
                 df = df.drop(columns=["_temp_date"])
@@ -158,12 +158,11 @@ def load_day_history(day):
 def get_latest_base_number(day):
     df = load_day_history(day)
     if not df.empty and "special" in df.columns:
-        # วนลูปหาค่า special ที่ถูกต้อง 6 หลักตัวแรกสุดหลังเรียงลำดับ
         for val in df["special"]:
             cleaned_val = str(val).zfill(6)
             if validate_number(cleaned_val):
                 return cleaned_val
-    return "048808" # ค่าสำรองเริ่มต้นหากยังไม่มีข้อมูล
+    return "048808"
 
 def save_analysis_history(day, base_number, top_3_val, bottom_2_val):
     filename = CSV_FILE_MAP.get(day)
@@ -181,9 +180,8 @@ def save_analysis_history(day, base_number, top_3_val, bottom_2_val):
     
     df = load_day_history(day)
     df_new = pd.DataFrame([new_record])
-    
-    # รวมข้อมูลใหม่ไว้ด้านบน แล้วเรียงลำดับตามวันที่ใหม่อีกครั้ง
     df = pd.concat([df_new, df], ignore_index=True)
+    
     if "date" in df.columns:
         df["_temp_date"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors="coerce")
         df = df.sort_values(by="_temp_date", ascending=False, na_position="last")
@@ -394,19 +392,29 @@ selected_day = st.selectbox(
 )
 
 daily_number = get_daily_number(selected_day)
-
-# แสดงข้อมูลเลขประจำวันและไฟล์ CSV ประจำวันอย่างชัดเจน
-st.markdown(f"""
-<div class="pair-box">
-    <div class="pair-title">📌 ข้อมูลประจำ{DAY_NAMES_TH[selected_day]}</div>
-    <div><b>Daily Number:</b> <span class="badge-number badge-highlight">{daily_number}</span></div>
-    <div style="margin-top:5px; font-size:13px; color:#64748b;">แหล่งข้อมูล: <code>{CSV_FILE_MAP[selected_day]}</code></div>
-</div>
-""", unsafe_allow_html=True)
-
-st.subheader("🔢 เลขฐาน")
 latest_base = get_latest_base_number(selected_day)
 
+# แสดงข้อมูลประจำวัน ด้านซ้ายเป็น Daily Number ด้านขวาเป็นเลขฐานล่าสุดจาก CSV
+col_info1, col_info2 = st.columns(2)
+with col_info1:
+    st.markdown(f"""
+    <div class="pair-box">
+        <div class="pair-title">📌 Daily Number ({DAY_NAMES_TH[selected_day]})</div>
+        <div><span class="badge-number badge-highlight">{daily_number}</span></div>
+        <div style="margin-top:5px; font-size:12px; color:#64748b;">แหล่งข้อมูล: <code>{CSV_FILE_MAP[selected_day]}</code></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_info2:
+    st.markdown(f"""
+    <div class="pair-box">
+        <div class="pair-title">🔢 เลขฐานล่าสุดจาก CSV</div>
+        <div><span class="badge-number badge-highlight">{latest_base}</span></div>
+        <div style="margin-top:5px; font-size:12px; color:#64748b;">สถานะ: พร้อมใช้งานอัตโนมัติ</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.subheader("🔢 เลขฐาน")
 base_input = st.text_input(
     f"ป้อนเลขฐาน 6 หลัก (ดึงค่าล่าสุดจาก `{CSV_FILE_MAP[selected_day]}` ให้อัตโนมัติ)",
     value=latest_base,
