@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (5-DAY CSV)"
+VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (5-DAY SEPARATED CSV)"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -99,17 +99,12 @@ footer {visibility:hidden;}
     color:white;
     border-color:#0369a1;
 }
-
-.section-note {
-    color:#64748b;
-    font-size:13px;
-}
 </style>
 """, unsafe_allow_html=True)
 
 
 # =====================================================
-# 3. DAILY NUMBERS & 5-DAY CSV MANAGEMENT
+# 3. DAILY NUMBERS & 5-DAY SEPARATED CSV MANAGEMENT
 # =====================================================
 
 DAILY_NUMBERS = {
@@ -128,7 +123,7 @@ DAY_NAMES_TH = {
     "Friday": "วันศุกร์"
 }
 
-# กำหนดชื่อไฟล์ CSV แยกตามวัน (เฉพาะ 5 วัน)
+# กำหนดชื่อไฟล์ CSV แยกเฉพาะวันจันทร์ - ศุกร์ (5 วัน)
 CSV_FILE_MAP = {
     "Monday": "history_lao_mon.csv",
     "Tuesday": "history_lao_tue.csv",
@@ -138,11 +133,14 @@ CSV_FILE_MAP = {
 }
 
 CURRENT_DAY = datetime.now().strftime("%A")
-# หากเป็นวันเสาร์/อาทิตย์ ให้เลือกวันจันทร์เป็นค่าเริ่มต้น
+# หากวันนี้เป็นเสาร์-อาทิตย์ ให้ดีฟอลต์ไปที่วันจันทร์
 DEFAULT_DAY = CURRENT_DAY if CURRENT_DAY in DAILY_NUMBERS else "Monday"
 
 def get_daily_number(day):
     return DAILY_NUMBERS.get(day, "000000")
+
+def validate_number(number):
+    return bool(re.fullmatch(r"[0-9]{6}", str(number)))
 
 def load_day_history(day):
     filename = CSV_FILE_MAP.get(day)
@@ -154,12 +152,13 @@ def load_day_history(day):
     return pd.DataFrame(columns=["Timestamp", "Base_Number", "Daily_Number", "Top_Digits"])
 
 def get_latest_base_number(day):
+    # ดึงเลขฐานล่าสุดเฉพาะไฟล์ CSV ของวันที่เลือก
     df = load_day_history(day)
     if not df.empty and "Base_Number" in df.columns:
         latest = df["Base_Number"].iloc[0]
         if validate_number(latest):
             return latest
-    return "048808" # ค่าเริ่มต้นถ้ายังไม่มีประวัติ
+    return "048808" # ค่าเริ่มต้นถ้าวันนั้นยังไม่มีประวัติ
 
 def save_analysis_history(day, base_number, daily_number, top_digits):
     filename = CSV_FILE_MAP.get(day)
@@ -182,10 +181,6 @@ def save_analysis_history(day, base_number, daily_number, top_digits):
 # =====================================================
 # 4. FORMULA ENGINE - 15 FORMULAS
 # =====================================================
-
-def validate_number(number):
-    return bool(re.fullmatch(r"[0-9]{6}", str(number)))
-
 
 def formula1(number):
     a, b, c, d, e, f = map(int, number)
@@ -381,7 +376,6 @@ def generate_combinations(digits, length, include_reverse=True):
 
     results = []
 
-    # ใช้ permutations เพื่อสร้างเลขสลับตำแหน่งทุกรูปแบบ
     for group in permutations(digits, length):
         number = "".join(group)
         results.append(number)
@@ -447,13 +441,13 @@ st.caption(f"{VERSION} | {len(FORMULAS)} Formula Engines")
 st.markdown("---")
 
 # -----------------------------------------------------
-# Daily Number Selection (5 Days Only)
+# Daily Number Selection (Mon-Fri)
 # -----------------------------------------------------
 
 st.subheader("📅 Daily Number Engine & Day Selection")
 
 day_options = list(DAILY_NUMBERS.keys())
-default_index = day_options.index(DEFAULT_DAY)
+default_index = day_options.index(DEFAULT_DAY) if DEFAULT_DAY in day_options else 0
 
 selected_day = st.selectbox(
     "เลือกวันสำหรับวิเคราะห์ (จันทร์ - ศุกร์)",
@@ -463,7 +457,6 @@ selected_day = st.selectbox(
 )
 
 daily_number = get_daily_number(selected_day)
-latest_base = get_latest_base_number(selected_day)
 
 st.info(
     f"Daily Number: **{daily_number}** | "
@@ -472,13 +465,16 @@ st.info(
 )
 
 # -----------------------------------------------------
-# Base Number
+# Base Number (ดึงค่าล่าสุดจาก CSV ประจำวันนั้นๆ อัตโนมัติ)
 # -----------------------------------------------------
 
 st.subheader("🔢 เลขฐาน")
 
+# ดึงเลขฐานล่าสุดจากไฟล์ CSV ของวันที่ผู้ใช้เลือกใน selectbox
+latest_base = get_latest_base_number(selected_day)
+
 base_input = st.text_input(
-    f"ป้อนเลขฐาน 6 หลัก (ดึงค่าล่าสุดของ{DAY_NAMES_TH[selected_day]}ให้อัตโนมัติ)",
+    f"ป้อนเลขฐาน 6 หลัก (ดึงค่าล่าสุดจาก `{CSV_FILE_MAP[selected_day]}` ให้อัตโนมัติ)",
     value=latest_base,
     max_chars=6,
     placeholder="เช่น 048808"
@@ -525,7 +521,7 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         top_digits = ranking[:display_count]
         digits_only = [digit for digit, count in top_digits]
 
-        # บันทึกประวัติลง CSV ประจำวันนั้นๆ อัตโนมัติ
+        # บันทึกประวัติลงไฟล์ CSV เฉพาะของวันนั้นๆ (Mon-Fri) อัตโนมัติ
         save_analysis_history(selected_day, base_input, daily_number, digits_only)
 
         # C. SUMMARY
@@ -639,12 +635,11 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
 
 else:
     st.markdown("---")
-    # แสดงประวัติของวันที่เลือกในหน้าแรก
     st.subheader(f"📜 ประวัติล่าสุดประจำ{DAY_NAMES_TH[selected_day]}")
     df_hist = load_day_history(selected_day)
     if not df_hist.empty:
         st.dataframe(df_hist.head(5), use_container_width=True, hide_index=True)
     else:
-        st.info("ยังไม่มีประวัติการบันทึกสำหรับวันนี้")
+        st.info(f"ยังไม่มีประวัติการบันทึกใน `{CSV_FILE_MAP[selected_day]}`")
 
-    st.caption("LAO AI PROFESSIONAL v4.1 (5-Day CSV System)")
+    st.caption("LAO AI PROFESSIONAL v4.1 (5-Day Separated CSV System)")
