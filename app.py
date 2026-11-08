@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 HYBRID DAILY & SMART COMBINATION ENGINE"
+VERSION = "4.1 HYBRID DAILY & AUTO-DATE CSV SYNC ENGINE"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -140,6 +140,31 @@ def get_daily_number(day):
 def validate_number(number):
     return bool(re.fullmatch(r"[0-9]{6}", str(number)))
 
+# ฟังก์ชันแปลง พ.ศ. เป็น ค.ศ. เพื่อการประมวลผลวันที่ที่ถูกต้อง
+def parse_date_str(date_str):
+    date_str = date_str.strip()
+    parts = date_str.split('/')
+    if len(parts) == 3:
+        d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+        if y > 2400: # ปรับปี พ.ศ. เป็น ค.ศ.
+            y -= 543
+        return datetime(y, m, d)
+    return None
+
+# ฟังก์ชันระบุวันในสัปดาห์ (Mon-Fri) จากสตริงวันที่
+def get_day_name_from_date(date_str):
+    try:
+        dt = parse_date_str(date_str)
+        if dt:
+            day_name = dt.strftime("%A")
+            # หากตรงกับ เสาร์/อาทิตย์ ให้แมปเข้าวันจันทร์ หรือวันทำการใกล้เคียงตามเหมาะสม
+            if day_name in ["Saturday", "Sunday"]:
+                return "Monday"
+            return day_name
+    except Exception:
+        pass
+    return None
+
 def load_day_history(day):
     filename = CSV_FILE_MAP.get(day)
     if filename and os.path.exists(filename):
@@ -196,21 +221,22 @@ def get_global_latest_base_number():
         
     return "048808"
 
-def save_analysis_history(day, base_number, top_3_val, bottom_2_val):
-    filename = CSV_FILE_MAP.get(day)
+# บันทึกข้อมูลลง CSV อัตโนมัติตามวันที่ที่ผู้ใช้กรอก
+def save_analysis_history_auto(date_str, base_number, top_3_val, bottom_2_val):
+    target_day = get_day_name_from_date(date_str) or "Monday"
+    filename = CSV_FILE_MAP.get(target_day)
     if not filename:
-        return
+        return target_day
     
-    today_str = datetime.now().strftime("%d/%m/%Y")
     new_record = {
-        "date": today_str,
+        "date": date_str,
         "special": str(base_number).zfill(6),
         "first_prize": str(base_number)[3:].zfill(3),
         "top_3": str(top_3_val),
         "bottom_2": str(bottom_2_val)
     }
     
-    df = load_day_history(day)
+    df = load_day_history(target_day)
     df_new = pd.DataFrame([new_record])
     df = pd.concat([df_new, df], ignore_index=True)
     
@@ -220,6 +246,7 @@ def save_analysis_history(day, base_number, top_3_val, bottom_2_val):
         df = df.drop(columns=["_temp_date"])
         
     df.to_csv(filename, index=False, encoding="utf-8-sig")
+    return target_day
 
 
 # =====================================================
@@ -328,7 +355,7 @@ FORMULAS = [
 
 
 # =====================================================
-# 5. SMART COMBINATION ENGINE (คัดเลือกเฉพาะชุดเน้นสูงสุด 10 ชุด)
+# 5. SMART COMBINATION ENGINE
 # =====================================================
 
 def calculate_all_formulas(base_number):
@@ -357,15 +384,10 @@ def calculate_frequency(formula_outputs, daily_number):
     return formula_counter, daily_counter, combined_counter, ranking
 
 def generate_smart_combinations(digits, length, max_results=10):
-    """
-    Smart Combination: คัดเลือกเฉพาะชุดตัวเลขเด่นที่สำคัญ (สูงสุด 10 ชุด) 
-    โดยจัดอันดับจากความสำคัญของตัวเลขเด่น ไม่สร้าง Permutation ทั้งหมด
-    """
     if len(digits) < length:
         return []
     
     results = []
-    # นำ digits ที่จัดอันดับความถี่แล้วมาจัดกลุ่มผสมกันอย่างฉลาด (Smart Combinations)
     for comb in combinations(digits, length):
         num_str = "".join(comb)
         results.append(num_str)
@@ -419,37 +441,43 @@ st.title("🧠 LAO AI PROFESSIONAL")
 st.caption(f"{VERSION} | {len(FORMULAS)} Formula Engines")
 st.markdown("---")
 
-st.subheader("📅 Daily Number Engine & Day Selection")
+st.subheader("📅 Daily Number Engine & Date Auto-Sync")
 
-day_options = list(DAILY_NUMBERS.keys())
-default_index = day_options.index(DEFAULT_DAY) if DEFAULT_DAY in day_options else 0
+# ส่วนป้อนวันที่แทนการเลือกวัน (ระบบตรวจจับวันอัตโนมัติ)
+today_default = datetime.now().strftime("%d/%m/%Y")
 
-selected_day = st.selectbox(
-    "เลือกวันสำหรับวิเคราะห์ (จันทร์ - ศุกร์)",
-    day_options,
-    index=default_index,
-    format_func=lambda x: DAY_NAMES_TH[x]
-)
+col_date1, col_date2 = st.columns([2, 1])
+with col_date1:
+    input_date_str = st.text_input("ระบุวันที่ (รูปแบบ DD/MM/YYYY)", value=today_default, placeholder="เช่น 08/11/2569")
 
-daily_number = get_daily_number(selected_day)
-latest_base_for_selected_day = get_latest_base_number_for_day(selected_day)
+# ตรวจหาว่าวันที่ที่กรอกตรงกับวันอะไร
+detected_day = get_day_name_from_date(input_date_str) or DEFAULT_DAY
+with col_date2:
+    st.markdown(f"""
+    <div style="margin-top:28px; font-weight:700; color:#0284c7;">
+        🗓️ ตรวจพบ: {DAY_NAMES_TH.get(detected_day, detected_day)}
+    </div>
+    """, unsafe_allow_html=True)
+
+daily_number = get_daily_number(detected_day)
+latest_base_for_selected_day = get_latest_base_number_for_day(detected_day)
 
 col_info1, col_info2 = st.columns(2)
 with col_info1:
     st.markdown(f"""
     <div class="pair-box">
-        <div class="pair-title">📌 Daily Number ({DAY_NAMES_TH[selected_day]})</div>
+        <div class="pair-title">📌 Daily Number ({DAY_NAMES_TH[detected_day]})</div>
         <div><span class="badge-number badge-highlight">{daily_number}</span></div>
-        <div style="margin-top:5px; font-size:12px; color:#64748b;">อ้างอิง: ตามวันที่เลือกในระบบ</div>
+        <div style="margin-top:5px; font-size:12px; color:#64748b;">อ้างอิง: อัตโนมัติจากวันที่ระบุ</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col_info2:
     st.markdown(f"""
     <div class="pair-box">
-        <div class="pair-title">🔢 เลขฐานล่าสุด ({DAY_NAMES_TH[selected_day]})</div>
+        <div class="pair-title">🔢 เลขฐานล่าสุด ({DAY_NAMES_TH[detected_day]})</div>
         <div><span class="badge-number badge-highlight">{latest_base_for_selected_day}</span></div>
-        <div style="margin-top:5px; font-size:12px; color:#64748b;">แหล่งข้อมูล: <code>{CSV_FILE_MAP[selected_day]}</code></div>
+        <div style="margin-top:5px; font-size:12px; color:#64748b;">แหล่งข้อมูล: <code>{CSV_FILE_MAP[detected_day]}</code></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -479,7 +507,8 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         top_3_val = "".join(digits_only[:3]) if len(digits_only) >= 3 else ""
         bottom_2_val = "".join(digits_only[:2]) if len(digits_only) >= 2 else ""
 
-        save_analysis_history(selected_day, base_input, top_3_val, bottom_2_val)
+        # บันทึกลง CSV ประจำวันนั้นๆ อัตโนมัติโดยอิงตามวันที่ระบุ
+        saved_day = save_analysis_history_auto(input_date_str, base_input, top_3_val, bottom_2_val)
 
         st.markdown("---")
         st.subheader("3. เลขที่ปรากฏบ่อยจาก 15 สูตร + Daily Number")
@@ -518,7 +547,7 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
 
         st.markdown("---")
         st.header("📊 ANALYSIS REPORT")
-        st.success(f"วิเคราะห์และบันทึกเลขฐาน `{base_input}` ลง `{CSV_FILE_MAP[selected_day]}` เรียบร้อยแล้ว")
+        st.success(f"วิเคราะห์และบันทึกเลขฐาน `{base_input}` ลง `{CSV_FILE_MAP[saved_day]}` ({DAY_NAMES_TH[saved_day]}) อัตโนมัติแล้ว")
 
         col1, col2, col3 = st.columns(3)
         col1.metric("สูตรสำเร็จ", f"{len(outputs)}/15")
@@ -551,8 +580,8 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         total_digits = len(outputs)*4 + len(daily_number)
         st.caption(f"รวมจำนวนหลักที่นำมาวิเคราะห์: {total_digits} หลัก")
 
-        st.subheader(f"📜 ประวัติการวิเคราะห์และผลรางวัล ({DAY_NAMES_TH[selected_day]})")
-        df_hist = load_day_history(selected_day)
+        st.subheader(f"📜 ประวัติการวิเคราะห์และผลรางวัล ({DAY_NAMES_TH[saved_day]})")
+        df_hist = load_day_history(saved_day)
         if not df_hist.empty:
             st.dataframe(df_hist, use_container_width=True, hide_index=True)
         else:
@@ -560,11 +589,11 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
 
 else:
     st.markdown("---")
-    st.subheader(f"📜 ประวัติย้อนหลังประจำ{DAY_NAMES_TH[selected_day]} (`{CSV_FILE_MAP[selected_day]}`)")
-    df_hist = load_day_history(selected_day)
+    st.subheader(f"📜 ประวัติย้อนหลังประจำ{DAY_NAMES_TH[detected_day]} (`{CSV_FILE_MAP[detected_day]}`)")
+    df_hist = load_day_history(detected_day)
     if not df_hist.empty:
         st.dataframe(df_hist.head(10), use_container_width=True, hide_index=True)
     else:
-        st.info(f"ยังไม่มีประวัติในไฟล์ `{CSV_FILE_MAP[selected_day]}`")
+        st.info(f"ยังไม่มีประวัติในไฟล์ `{CSV_FILE_MAP[detected_day]}`")
 
-    st.caption("LAO AI PROFESSIONAL v4.1 (Smart Combination Engine)")
+    st.caption("LAO AI PROFESSIONAL v4.1 (Auto Date CSV Sync)")
