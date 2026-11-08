@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (GLOBAL LATEST BASE SYNC)"
+VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (STRICT PER-DAY SYNC)"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -104,7 +104,7 @@ footer {visibility:hidden;}
 
 
 # =====================================================
-# 3. DAILY NUMBERS & GLOBAL CSV MANAGEMENT
+# 3. DAILY NUMBERS & STRICT PER-DAY CSV MANAGEMENT
 # =====================================================
 
 DAILY_NUMBERS = {
@@ -154,32 +154,23 @@ def load_day_history(day):
             pass
     return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
 
-# ฟังก์ชันค้นหา "เลขฐานล่าสุด" จริงจากไฟล์ CSV ทั้ง 5 ไฟล์ (เปรียบเทียบวันที่ใหม่ที่สุดในภาพรวม)
-def get_global_latest_base_number():
-    all_records = []
-    for day_key, filename in CSV_FILE_MAP.items():
-        if os.path.exists(filename):
-            try:
-                df = pd.read_csv(filename, dtype=str)
-                if not df.empty and "date" in df.columns and "special" in df.columns:
-                    df["_temp_date"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors="coerce")
-                    for _, row in df.iterrows():
-                        special_val = str(row["special"]).zfill(6)
-                        if validate_number(special_val):
-                            all_records.append({
-                                "date": row["_temp_date"],
-                                "special": special_val,
-                                "file": filename
-                            })
-            except Exception:
-                pass
-    
-    if all_records:
-        df_all = pd.DataFrame(all_records)
-        df_all = df_all.sort_values(by="date", ascending=False, na_position="last")
-        return df_all.iloc[0]["special"]
-        
-    return "048808" # ค่าสำรองหากทุกไฟล์ว่างเปล่า
+# ดึงเลขฐานล่าสุดเฉพาะไฟล์ CSV ของวันที่เลือกเท่านั้น (เช่น เลือกวันจันทร์ ดึงจาก history_lao_mon.csv)
+def get_latest_base_number_for_day(day):
+    df = load_day_history(day)
+    if not df.empty and "special" in df.columns:
+        for val in df["special"]:
+            cleaned_val = str(val).zfill(6)
+            if validate_number(cleaned_val):
+                return cleaned_val
+    # ค่าสำรองเริ่มต้นตามวัน
+    fallbacks = {
+        "Monday": "738155",
+        "Tuesday": "145713",
+        "Wednesday": "048808",
+        "Thursday": "723294",
+        "Friday": "863206"
+    }
+    return fallbacks.get(day, "048808")
 
 def save_analysis_history(day, base_number, top_3_val, bottom_2_val):
     filename = CSV_FILE_MAP.get(day)
@@ -408,12 +399,12 @@ selected_day = st.selectbox(
     format_func=lambda x: DAY_NAMES_TH[x]
 )
 
-# 1. Daily Number ตามวันทีเลือก
+# 1. ดึง Daily Number ตามวันที่เลือก
 daily_number = get_daily_number(selected_day)
-# 2. เลขฐานล่าสุดจากไฟล์ CSV ทั้ง 5 ไฟล์ (หาผลล่าสุดจริงในภาพรวม)
-global_latest_base = get_global_latest_base_number()
+# 2. ดึงเลขฐานล่าสุดเฉพาะไฟล์ CSV ของวันที่เลือก (เช่น เลือกวันจันทร์ -> อ่าน history_lao_mon.csv)
+latest_base_for_selected_day = get_latest_base_number_for_day(selected_day)
 
-# แสดงข้อมูลแยกส่วนกันอย่างชัดเจน
+# แสดงข้อมูลสอดคล้องกันทั้ง 2 ฝั่งตามวันที่เลือก
 col_info1, col_info2 = st.columns(2)
 with col_info1:
     st.markdown(f"""
@@ -427,20 +418,20 @@ with col_info1:
 with col_info2:
     st.markdown(f"""
     <div class="pair-box">
-        <div class="pair-title">🔢 เลขฐานล่าสุด (ทุกไฟล์ CSV)</div>
-        <div><span class="badge-number badge-highlight">{global_latest_base}</span></div>
-        <div style="margin-top:5px; font-size:12px; color:#64748b;">อ้างอิง: ผลล่าสุดจริงจาก 5 ไฟล์</div>
+        <div class="pair-title">🔢 เลขฐานล่าสุด ({DAY_NAMES_TH[selected_day]})</div>
+        <div><span class="badge-number badge-highlight">{latest_base_for_selected_day}</span></div>
+        <div style="margin-top:5px; font-size:12px; color:#64748b;">แหล่งข้อมูล: <code>{CSV_FILE_MAP[selected_day]}</code></div>
     </div>
     """, unsafe_allow_html=True)
 
 st.subheader("🔢 เลขฐาน")
-# ช่องป้อนเลขฐาน: ใช้เลขฐานล่าสุดจริงจากทุกไฟล์เป็นค่าเริ่มต้น แต่ผู้ใช้สามารถแก้ไขเองได้
+# ช่องป้อนเลขฐาน: ใช้เลขฐานล่าสุดของ "วันนั้นๆ" เป็นค่าเริ่มต้น และผู้ใช้สามารถแก้ไขได้อิสระ
 base_input = st.text_input(
-    "ป้อนเลขฐาน 6 หลัก (ดึงค่าล่าสุดจริงจากไฟล์ CSV ทั้ง 5 วันเป็นค่าเริ่มต้น สามารถแก้ไขได้)",
-    value=global_latest_base,
+    f"ป้อนเลขฐาน 6 หลัก (ดึงค่าล่าสุดจาก `{CSV_FILE_MAP[selected_day]}` เป็นค่าเริ่มต้น สามารถแก้ไขได้)",
+    value=latest_base_for_selected_day,
     max_chars=6,
     placeholder="เช่น 048808",
-    key="global_base_input"
+    key=f"base_input_{selected_day}"  # Key แยกตามวันเพื่อให้รีเซ็ตค่าตามวันที่เลือกอัตโนมัติ
 )
 
 st.subheader("⚙️ Analysis Settings")
@@ -459,7 +450,7 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         top_3_val = "".join(digits_only[:3]) if len(digits_only) >= 3 else ""
         bottom_2_val = "".join(digits_only[:2]) if len(digits_only) >= 2 else ""
 
-        # เมื่อกดวิเคราะห์ จะบันทึกลงไฟล์ CSV ของวันที่เลือก (selected_day) ตามปกติ
+        # บันทึกลงไฟล์ CSV ประจำวันนั้นๆ ทันที
         save_analysis_history(selected_day, base_input, top_3_val, bottom_2_val)
 
         st.markdown("---")
@@ -556,4 +547,4 @@ else:
     else:
         st.info(f"ยังไม่มีประวัติในไฟล์ `{CSV_FILE_MAP[selected_day]}`")
 
-    st.caption("LAO AI PROFESSIONAL v4.1 (Global CSV Sync)")
+    st.caption("LAO AI PROFESSIONAL v4.1 (Strict Per-Day CSV Sync)")
