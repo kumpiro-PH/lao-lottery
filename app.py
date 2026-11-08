@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (REORDERED TOP PICKS & RANKING)"
+VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (SMART 10-LIMIT ENGINE)"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -390,14 +390,21 @@ def display_number_cards(ranking, formula_counter, daily_counter):
     html.append('</div>')
     st.html("".join(html))
 
-def display_number_group(title, numbers):
+# ปรับปรุง display_number_group รองรับ Smart Selection (จำกัด 10 ชุดแรก)
+def display_number_group(title, numbers, limit=10, show_all=False):
     if not numbers:
         st.info(f"{title}: ไม่มีชุดตัวเลข")
         return
-    badges = "".join(f'<span class="badge-number">{number}</span>' for number in numbers)
+    
+    total_count = len(numbers)
+    display_list = numbers if (show_all or total_count <= limit) else numbers[:limit]
+    
+    badges = "".join(f'<span class="badge-number">{number}</span>' for number in display_list)
+    subtitle_info = f" (แสดง {len(display_list)} จากทั้งหมด {total_count} ชุด)" if total_count > limit and not show_all else f" ({total_count} ชุด)"
+    
     st.markdown(f"""
     <div class="pair-box">
-        <div class="pair-title">{title} ({len(numbers)} ชุด)</div>
+        <div class="pair-title">{title}{subtitle_info}</div>
         {badges}
     </div>
     """, unsafe_allow_html=True)
@@ -492,7 +499,6 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
             </div>
             """, unsafe_allow_html=True)
 
-        # ย้าย "4. เลขเด่นจากการจัดอันดับ" มาวางไว้ใต้ 5. TOP PICKS ตามต้องการ
         st.subheader("4. เลขเด่นจากการจัดอันดับ")
         main_group = digits_only[:3]
         secondary_group = digits_only[3:6]
@@ -504,10 +510,14 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
 
         st.markdown("---")
         st.header("🎯 COMBINATION & PERMUTATION ENGINE")
+        
+        # ตัวเลือก Smart Filter จำกัด 10 ชุด
+        show_all_combos = st.checkbox("แสดงชุดตัวเลขทั้งหมด (ยกเลิกจำกัด 10 ชุด)", value=False)
+        
         lengths = [5, 4, 3, 2]
         for length in lengths:
             generated = generate_combinations(digits_only, length, include_reverse)
-            display_number_group(f"🎲 ชุด {length} ตัว (สลับตำแหน่ง)", generated)
+            display_number_group(f"🎲 ชุด {length} ตัว (สลับตำแหน่ง)", generated, limit=10, show_all=show_all_combos)
 
         st.markdown("---")
         st.header("📊 ANALYSIS REPORT")
@@ -560,4 +570,4 @@ else:
     else:
         st.info(f"ยังไม่มีประวัติในไฟล์ `{CSV_FILE_MAP[selected_day]}`")
 
-    st.caption("LAO AI PROFESSIONAL v4.1 (Reordered Ranking Layout)")
+    st.caption("LAO AI PROFESSIONAL v4.1 (Smart 10-Limit Permutation Engine)")
