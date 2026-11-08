@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (5-DAY CSV SYNC + CUSTOM BASE)"
+VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (LATEST FRIDAY BASE SYNC)"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -154,14 +154,23 @@ def load_day_history(day):
             pass
     return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
 
-def get_latest_base_number(day):
-    df = load_day_history(day)
-    if not df.empty and "special" in df.columns:
-        for val in df["special"]:
-            cleaned_val = str(val).zfill(6)
-            if validate_number(cleaned_val):
-                return cleaned_val
-    return "048808"
+# ฟังก์ชันดึงเลขฐานล่าสุดจากไฟล์ CSV ของ "วันศุกร์" โดยเฉพาะ
+def get_latest_friday_base_number():
+    fri_filename = CSV_FILE_MAP["Friday"]
+    if os.path.exists(fri_filename):
+        try:
+            df = pd.read_csv(fri_filename, dtype=str)
+            if not df.empty and "date" in df.columns:
+                df["_temp_date"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors="coerce")
+                df = df.sort_values(by="_temp_date", ascending=False, na_position="last")
+            if not df.empty and "special" in df.columns:
+                for val in df["special"]:
+                    cleaned_val = str(val).zfill(6)
+                    if validate_number(cleaned_val):
+                        return cleaned_val
+        except Exception:
+            pass
+    return "863206" # ค่าสำรองหากไฟล์วันศุกร์ว่าง
 
 def save_analysis_history(day, base_number, top_3_val, bottom_2_val):
     filename = CSV_FILE_MAP.get(day)
@@ -391,9 +400,9 @@ selected_day = st.selectbox(
 )
 
 daily_number = get_daily_number(selected_day)
-latest_base = get_latest_base_number(selected_day)
+latest_friday_base = get_latest_friday_base_number()
 
-# แสดงข้อมูลประจำวัน ด้านซ้ายเป็น Daily Number ด้านขวาเป็นเลขฐานล่าสุดจาก CSV
+# แสดงข้อมูลประจำวัน ด้านซ้ายเป็น Daily Number ด้านขวาเป็นเลขฐานล่าสุดจากวันศุกร์
 col_info1, col_info2 = st.columns(2)
 with col_info1:
     st.markdown(f"""
@@ -407,17 +416,17 @@ with col_info1:
 with col_info2:
     st.markdown(f"""
     <div class="pair-box">
-        <div class="pair-title">🔢 เลขฐานล่าสุดจาก CSV</div>
-        <div><span class="badge-number badge-highlight">{latest_base}</span></div>
-        <div style="margin-top:5px; font-size:12px; color:#64748b;">สถานะ: โหลดเป็นค่าเริ่มต้น</div>
+        <div class="pair-title">🔢 เลขฐานล่าสุด (วันศุกร์)</div>
+        <div><span class="badge-number badge-highlight">{latest_friday_base}</span></div>
+        <div style="margin-top:5px; font-size:12px; color:#64748b;">แหล่งข้อมูล: <code>history_lao_fri.csv</code></div>
     </div>
     """, unsafe_allow_html=True)
 
 st.subheader("🔢 เลขฐาน")
-# ให้ช่องนี้ใช้ค่าล่าสุดจาก CSV เป็นค่าเริ่มต้น แต่ผู้ใช้สามารถพิมพ์แก้ไข/กำหนดเลขฐานเองได้อิสระ
+# ดึงเลขฐานล่าสุดจากวันศุกร์มาเป็นค่าเริ่มต้น แต่ผู้ใช้สามารถแก้ไขได้อิสระ
 base_input = st.text_input(
-    f"ป้อนเลขฐาน 6 หลัก (ดึงค่าล่าสุดจาก `{CSV_FILE_MAP[selected_day]}` เป็นค่าเริ่มต้น สามารถแก้ไขได้)",
-    value=latest_base,
+    f"ป้อนเลขฐาน 6 หลัก (ดึงค่าล่าสุดจาก `history_lao_fri.csv` เป็นค่าเริ่มต้น สามารถแก้ไขได้)",
+    value=latest_friday_base,
     max_chars=6,
     placeholder="เช่น 048808"
 )
