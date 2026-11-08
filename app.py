@@ -145,6 +145,11 @@ def load_day_history(day):
     if filename and os.path.exists(filename):
         try:
             df = pd.read_csv(filename, dtype=str)
+            if not df.empty and "date" in df.columns:
+                # แปลงวันที่จากรูปแบบ DD/MM/YYYY เป็น datetime เพื่อเรียงลำดับจากใหม่ไปเก่า
+                df["_temp_date"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors="coerce")
+                df = df.sort_values(by="_temp_date", ascending=False, na_position="last")
+                df = df.drop(columns=["_temp_date"])
             return df
         except Exception:
             pass
@@ -153,10 +158,12 @@ def load_day_history(day):
 def get_latest_base_number(day):
     df = load_day_history(day)
     if not df.empty and "special" in df.columns:
-        latest = str(df["special"].iloc[0]).zfill(6)
-        if validate_number(latest):
-            return latest
-    return "048808"
+        # วนลูปหาค่า special ที่ถูกต้อง 6 หลักตัวแรกสุดหลังเรียงลำดับ
+        for val in df["special"]:
+            cleaned_val = str(val).zfill(6)
+            if validate_number(cleaned_val):
+                return cleaned_val
+    return "048808" # ค่าสำรองเริ่มต้นหากยังไม่มีข้อมูล
 
 def save_analysis_history(day, base_number, top_3_val, bottom_2_val):
     filename = CSV_FILE_MAP.get(day)
@@ -174,7 +181,14 @@ def save_analysis_history(day, base_number, top_3_val, bottom_2_val):
     
     df = load_day_history(day)
     df_new = pd.DataFrame([new_record])
+    
+    # รวมข้อมูลใหม่ไว้ด้านบน แล้วเรียงลำดับตามวันที่ใหม่อีกครั้ง
     df = pd.concat([df_new, df], ignore_index=True)
+    if "date" in df.columns:
+        df["_temp_date"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors="coerce")
+        df = df.sort_values(by="_temp_date", ascending=False, na_position="last")
+        df = df.drop(columns=["_temp_date"])
+        
     df.to_csv(filename, index=False, encoding="utf-8-sig")
 
 
