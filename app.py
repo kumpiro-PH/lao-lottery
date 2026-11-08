@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (REORDERED LAYOUT)"
+VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (CUSTOMIZED LAYOUT)"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -475,13 +475,12 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         save_analysis_history(selected_day, base_input, top_3_val, bottom_2_val)
 
         st.markdown("---")
-        st.header("🎯 COMBINATION & PERMUTATION ENGINE")
-        lengths = [5, 4, 3, 2]
-        for length in lengths:
-            generated = generate_combinations(digits_only, length, include_reverse)
-            display_number_group(f"🎲 ชุด {length} ตัว (สลับตำแหน่ง)", generated)
+        
+        # ย้าย "3. เลขที่ปรากฏบ่อยจาก 15 สูตร + Daily Number" มาวางใต้ Analysis Settings ทันที
+        st.subheader("3. เลขที่ปรากฏบ่อยจาก 15 สูตร + Daily Number")
+        display_number_cards(top_digits, formula_counter, daily_counter)
 
-        st.markdown("---")
+        # ย้าย "5. TOP PICKS" มาวางไว้ต่อกันทันที
         st.subheader("5. TOP PICKS")
         if len(digits_only) >= 4:
             top_4 = "".join(digits_only[:4])
@@ -496,7 +495,13 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
             </div>
             """, unsafe_allow_html=True)
 
-        # ย้าย ANALYSIS REPORT มาไว้ใต้ 5. TOP PICKS ตามต้องการ
+        st.markdown("---")
+        st.header("🎯 COMBINATION & PERMUTATION ENGINE")
+        lengths = [5, 4, 3, 2]
+        for length in lengths:
+            generated = generate_combinations(digits_only, length, include_reverse)
+            display_number_group(f"🎲 ชุด {length} ตัว (สลับตำแหน่ง)", generated)
+
         st.markdown("---")
         st.header("📊 ANALYSIS REPORT")
         st.success(f"วิเคราะห์และบันทึกเลขฐาน `{base_input}` ลง `{CSV_FILE_MAP[selected_day]}` เรียบร้อยแล้ว")
@@ -515,19 +520,14 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         formula_rows = [{"Formula": name, "Result": result} for name, result in outputs.items()]
         st.dataframe(formula_rows, use_container_width=True, hide_index=True)
 
-        st.subheader("2. Daily Number")
-        st.markdown(f"""
-        <div class="pair-box">
-            <div class="pair-title">{DAY_NAMES_TH[selected_day]}</div>
-            <span class="badge-number badge-highlight">{daily_number}</span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.subheader("4. เลขเด่นจากการจัดอันดับ")
+        main_group = digits_only[:3]
+        secondary_group = digits_only[3:6]
+        remaining_group = [str(i) for i in range(10) if str(i) not in digits_only]
 
-        st.subheader("3. เลขที่ปรากฏบ่อยจาก 15 สูตร + Daily Number")
-        display_number_cards(top_digits, formula_counter, daily_counter)
-
-        total_digits = len(outputs)*4 + len(daily_number)
-        st.caption(f"รวมจำนวนหลักที่นำมาวิเคราะห์: {total_digits} หลัก")
+        st.write("**กลุ่มเด่น:** " + " - ".join(main_group))
+        st.write("**กลุ่มรอง:** " + (" - ".join(secondary_group) if secondary_group else "-"))
+        st.write("**เลขอื่น ๆ:** " + (" - ".join(remaining_group) if remaining_group else "-"))
 
         with st.expander("ดูความถี่เลข 0-9 ทั้งหมด"):
             frequency_rows = []
@@ -542,17 +542,6 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
             frequency_rows.sort(key=lambda x: (-x["Total Frequency"], int(x["เลข"])))
             st.dataframe(frequency_rows, use_container_width=True, hide_index=True)
 
-        st.markdown("---")
-        st.subheader("4. เลขเด่นจากการจัดอันดับ")
-        main_group = digits_only[:3]
-        secondary_group = digits_only[3:6]
-        remaining_group = [str(i) for i in range(10) if str(i) not in digits_only]
-
-        st.write("**กลุ่มเด่น:** " + " - ".join(main_group))
-        st.write("**กลุ่มรอง:** " + (" - ".join(secondary_group) if secondary_group else "-"))
-        st.write("**เลขอื่น ๆ:** " + (" - ".join(remaining_group) if remaining_group else "-"))
-
-        # ย้ายข้อความรวมจำนวนหลักมาวางไว้บนหัวข้อประวัติ
         st.markdown("---")
         total_digits = len(outputs)*4 + len(daily_number)
         st.caption(f"รวมจำนวนหลักที่นำมาวิเคราะห์: {total_digits} หลัก")
@@ -573,4 +562,4 @@ else:
     else:
         st.info(f"ยังไม่มีประวัติในไฟล์ `{CSV_FILE_MAP[selected_day]}`")
 
-    st.caption("LAO AI PROFESSIONAL v4.1 (Reordered Layout)")
+    st.caption("LAO AI PROFESSIONAL v4.1 (Customized Layout)")
