@@ -111,11 +111,11 @@ footer {visibility:hidden;}
 # =====================================================
 
 DAILY_NUMBERS = {
-    "Monday": "982714",
-    "Tuesday": "726851",
-    "Wednesday": "901487",
-    "Thursday": "916270",
-    "Friday": "042579",
+    "Monday": "056787",
+    "Tuesday": "657872",
+    "Wednesday": "390768",
+    "Thursday": "897693",
+    "Friday": "305687",
     "Saturday": "7890123",
     "Sunday": "8901234"
 }
