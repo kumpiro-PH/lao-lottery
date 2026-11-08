@@ -5,6 +5,9 @@ from itertools import combinations
 import re
 import pandas as pd
 import os
+import base64
+import requests
+from io import StringIO
 
 # =====================================================
 # 1. PAGE CONFIG
@@ -16,7 +19,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 HYBRID DAILY & BUTTON DAY SELECTOR ENGINE"
+VERSION = "4.1 FINAL GITHUB API & SEPARATE ENGINE"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -104,7 +107,7 @@ footer {visibility:hidden;}
 
 
 # =====================================================
-# 3. DAILY NUMBERS & 5-DAY CSV MANAGEMENT
+# 3. DAILY NUMBERS & GITHUB API CSV MANAGEMENT
 # =====================================================
 
 DAILY_NUMBERS = {
@@ -148,22 +151,41 @@ def get_daily_number(day):
 def validate_number(number):
     return bool(re.fullmatch(r"[0-9]{6}", str(number)))
 
-def load_day_history(day):
+def load_day_history_from_github(day):
     filename = CSV_FILE_MAP.get(day)
-    if filename and os.path.exists(filename):
+    github_token = st.secrets.get("GITHUB_TOKEN")
+    repo_name = st.secrets.get("GITHUB_REPO")
+    
+    if github_token and repo_name and filename:
+        headers = {
+            "Authorization": f"Bearer {github_token}",
+            "Accept": "application/vnd.github+json"
+        }
+        file_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}"
         try:
-            df = pd.read_csv(filename, dtype=str)
-            if not df.empty and "date" in df.columns:
-                df["_temp_date"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors="coerce")
-                df = df.sort_values(by="_temp_date", ascending=False, na_position="last")
-                df = df.drop(columns=["_temp_date"])
-            return df
+            res = requests.get(file_url, headers=headers)
+            if res.status_code == 200:
+                file_data = res.json()
+                content_decoded = base64.b64decode(file_data["content"]).decode("utf-8")
+                df = pd.read_csv(StringIO(content_decoded), dtype=str)
+                if not df.empty and "date" in df.columns:
+                    df["_temp_date"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors="coerce")
+                    df = df.sort_values(by="_temp_date", ascending=False, na_position="last")
+                    df = df.drop(columns=["_temp_date"])
+                return df
         except Exception:
             pass
+            
+    if filename and os.path.exists(filename):
+        try:
+            return pd.read_csv(filename, dtype=str)
+        except Exception:
+            pass
+            
     return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
 
 def get_latest_base_number_for_day(day):
-    df = load_day_history(day)
+    df = load_day_history_from_github(day)
     if not df.empty and "special" in df.columns:
         for val in df["special"]:
             cleaned_val = str(val).zfill(6)
@@ -180,37 +202,53 @@ def get_latest_base_number_for_day(day):
 
 def get_global_latest_base_number():
     all_records = []
-    for day_key, filename in CSV_FILE_MAP.items():
-        if os.path.exists(filename):
-            try:
-                df = pd.read_csv(filename, dtype=str)
-                if not df.empty and "date" in df.columns and "special" in df.columns:
-                    df["_temp_date"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors="coerce")
-                    for _, row in df.iterrows():
-                        special_val = str(row["special"]).zfill(6)
-                        if validate_number(special_val):
-                            all_records.append({
-                                "date": row["_temp_date"],
-                                "special": special_val,
-                                "file": filename
-                            })
-            except Exception:
-                pass
-    
+    for day_key in CSV_FILE_MAP.keys():
+        df = load_day_history_from_github(day_key)
+        if not df.empty and "date" in df.columns and "special" in df.columns:
+            for _, row in df.iterrows():
+                special_val = str(row["special"]).zfill(6)
+                if validate_number(special_val):
+                    dt_val = pd.to_datetime(row["date"], format="%d/%m/%Y", errors="coerce")
+                    all_records.append({
+                        "date": dt_val,
+                        "special": special_val
+                    })
     if all_records:
         df_all = pd.DataFrame(all_records)
         df_all = df_all.sort_values(by="date", ascending=False, na_position="last")
         return df_all.iloc[0]["special"]
-        
     return "048808"
 
-# บันทึกข้อมูลลง CSV ตามวันที่เลือกผ่านปุ่ม
-def save_history_entry(target_day, date_str, base_number):
+def save_history_to_github(target_day, date_str, base_number):
     filename = CSV_FILE_MAP.get(target_day)
     if not filename:
-        return
+        return False
     
     clean_num = str(base_number).zfill(6)
+    github_token = st.secrets.get("GITHUB_TOKEN")
+    repo_name = st.secrets.get("GITHUB_REPO")
+    branch = st.secrets.get("GITHUB_BRANCH", "main")
+    
+    if not github_token or not repo_name:
+        st.error("ยังไม่ได้ตั้งค่า GITHUB_TOKEN หรือ GITHUB_REPO ใน Streamlit Secrets")
+        return False
+        
+    headers = {
+        "Authorization": f"Bearer {github_token}",
+        "Accept": "application/vnd.github+json"
+    }
+    file_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}"
+    
+    res = requests.get(file_url, headers=headers)
+    file_sha = None
+    existing_df = pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
+    
+    if res.status_code == 200:
+        file_data = res.json()
+        file_sha = file_data["sha"]
+        content_decoded = base64.b64decode(file_data["content"]).decode("utf-8")
+        existing_df = pd.read_csv(StringIO(content_decoded), dtype=str)
+        
     new_record = {
         "date": date_str,
         "special": clean_num,
@@ -219,23 +257,34 @@ def save_history_entry(target_day, date_str, base_number):
         "bottom_2": clean_num[2:4].zfill(2)
     }
     
-    df = load_day_history(target_day)
-    if not df.empty and "date" in df.columns:
-        df = df[df["date"] != date_str]
+    if not existing_df.empty and "date" in existing_df.columns:
+        existing_df = existing_df[existing_df["date"] != date_str]
         
     df_new = pd.DataFrame([new_record])
-    df = pd.concat([df_new, df], ignore_index=True)
+    updated_df = pd.concat([df_new, existing_df], ignore_index=True)
     
-    if "date" in df.columns:
-        df["_temp_date"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors="coerce")
-        df = df.sort_values(by="_temp_date", ascending=False, na_position="last")
-        df = df.drop(columns=["_temp_date"])
+    if "date" in updated_df.columns:
+        updated_df["_temp_date"] = pd.to_datetime(updated_df["date"], format="%d/%m/%Y", errors="coerce")
+        updated_df = updated_df.sort_values(by="_temp_date", ascending=False, na_position="last")
+        updated_df = updated_df.drop(columns=["_temp_date"])
         
-    df.to_csv(filename, index=False, encoding="utf-8-sig")
+    csv_string = updated_df.to_csv(index=False, encoding="utf-8")
+    encoded_content = base64.b64encode(csv_string.encode("utf-8")).decode("utf-8")
+    
+    payload = {
+        "message": f"Update {filename} for {date_str} via Streamlit App",
+        "content": encoded_content,
+        "branch": branch
+    }
+    if file_sha:
+        payload["sha"] = file_sha
+        
+    put_res = requests.put(file_url, headers=headers, json=payload)
+    return put_res.status_code in [200, 201]
 
 
 # =====================================================
-# 4. FORMULA ENGINE - 15 FORMULAS
+# 4. FORMULA ENGINE & SMART COMBINATION
 # =====================================================
 
 def formula1(number):
@@ -338,11 +387,6 @@ FORMULAS = [
     ("Formula 13", formula13), ("Formula 14", formula14), ("Formula 15 - Neighbor", formula_neighbor)
 ]
 
-
-# =====================================================
-# 5. SMART COMBINATION ENGINE
-# =====================================================
-
 def calculate_all_formulas(base_number):
     outputs = {}
     errors = {}
@@ -371,7 +415,6 @@ def calculate_frequency(formula_outputs, daily_number):
 def generate_smart_combinations(digits, length, max_results=10):
     if len(digits) < length:
         return []
-    
     results = []
     for comb in combinations(digits, length):
         num_str = "".join(comb)
@@ -381,13 +424,7 @@ def generate_smart_combinations(digits, length, max_results=10):
             results.append(rev_str)
         if len(results) >= max_results:
             break
-            
     return list(dict.fromkeys(results))[:max_results]
-
-
-# =====================================================
-# 6. DISPLAY HELPERS
-# =====================================================
 
 def display_number_cards(ranking, formula_counter, daily_counter):
     html = ['<div class="grid-container">']
@@ -419,7 +456,7 @@ def display_number_group(title, numbers):
 
 
 # =====================================================
-# 7. MAIN STREAMLIT INTERFACE
+# 5. MAIN STREAMLIT INTERFACE
 # =====================================================
 
 st.title("🧠 LAO AI PROFESSIONAL")
@@ -428,7 +465,6 @@ st.markdown("---")
 
 st.subheader("📅 เลือกวันสำหรับวิเคราะห์ (วันจันทร์ - วันศุกร์)")
 
-# สร้างปุ่มเลือกวัน (Radio Button แบบแนวนอน)
 selected_day_th = st.radio(
     "เลือกวันทำการ",
     ["วันจันทร์", "วันอังคาร", "วันพุธ", "วันพฤหัสบดี", "วันศุกร์"],
@@ -441,7 +477,6 @@ selected_day = DAY_MAPPING[selected_day_th]
 daily_number = get_daily_number(selected_day)
 latest_base_for_selected_day = get_latest_base_number_for_day(selected_day)
 
-# ช่องกรอกวันที่สำหรับบันทึก CSV
 today_default = datetime.now().strftime("%d/%m/%Y")
 input_date_str = st.text_input("ระบุวันที่สำหรับบันทึกข้อมูล (รูปแบบ DD/MM/YYYY)", value=today_default, placeholder="เช่น 08/11/2026")
 
@@ -460,7 +495,7 @@ with col_info2:
     <div class="pair-box">
         <div class="pair-title">🔢 เลขฐานล่าสุด ({selected_day_th})</div>
         <div><span class="badge-number badge-highlight">{latest_base_for_selected_day}</span></div>
-        <div style="margin-top:5px; font-size:12px; color:#64748b;">แหล่งข้อมูล: <code>{CSV_FILE_MAP[selected_day]}</code></div>
+        <div style="margin-top:5px; font-size:12px; color:#64748b;">แหล่งข้อมูล: GitHub API</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -475,24 +510,23 @@ base_input = st.text_input(
     key="global_base_input"
 )
 
-# -----------------------------------------------------
-# ปุ่มบันทึก/อัปเดตข้อมูล CSV (แยกออกต่างหาก)
-# -----------------------------------------------------
+# ปุ่มบันทึก/อัปเดตข้อมูลขึ้น GitHub API โดยตรง
 if st.button("📥 บันทึก/อัปเดตข้อมูล CSV", use_container_width=True):
     if not validate_number(base_input):
         st.error("กรุณากรอกเลขฐานให้ครบ 6 หลักก่อนบันทึก")
     else:
-        save_history_entry(selected_day, input_date_str, base_input)
-        st.success(f"บันทึกเลขฐาน `{base_input}` ประจำวันที่ `{input_date_str}` ลงในไฟล์ `{CSV_FILE_MAP[selected_day]}` ({selected_day_th}) เรียบร้อยแล้ว!")
-        st.rerun()
+        success = save_history_to_github(selected_day, input_date_str, base_input)
+        if success:
+            st.success(f"บันทึกเลขฐาน `{base_input}` ลง GitHub สำเร็จ! (`{CSV_FILE_MAP[selected_day]}`)")
+            st.rerun()
+        else:
+            st.error("เกิดข้อผิดพลาดในการบันทึกข้อมูลขึ้น GitHub กรุณาตรวจสอบ Token และ Secrets อีกครั้ง")
 
 st.markdown("---")
 st.subheader("⚙️ Analysis Settings")
 display_count = st.radio("จำนวนเลขเด่นที่ต้องการแสดง", [5, 6], index=1, horizontal=True)
 
-# -----------------------------------------------------
-# ปุ่มสำหรับการวิเคราะห์ (แยกออกต่างหาก)
-# -----------------------------------------------------
+# ปุ่มสำหรับการวิเคราะห์แยกต่างหาก
 if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=True):
     if not validate_number(base_input):
         st.error("กรุณากรอกเลขฐานให้ครบ 6 หลัก และใช้ตัวเลข 0-9 เท่านั้น")
@@ -573,7 +607,7 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         st.caption(f"รวมจำนวนหลักที่นำมาวิเคราะห์: {total_digits} หลัก")
 
         st.subheader(f"📜 ประวัติการวิเคราะห์และผลรางวัล ({selected_day_th})")
-        df_hist = load_day_history(selected_day)
+        df_hist = load_day_history_from_github(selected_day)
         if not df_hist.empty:
             st.dataframe(df_hist, use_container_width=True, hide_index=True)
         else:
@@ -582,10 +616,10 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
 else:
     st.markdown("---")
     st.subheader(f"📜 ประวัติย้อนหลังประจำ{selected_day_th} (`{CSV_FILE_MAP[selected_day]}`)")
-    df_hist = load_day_history(selected_day)
+    df_hist = load_day_history_from_github(selected_day)
     if not df_hist.empty:
         st.dataframe(df_hist.head(10), use_container_width=True, hide_index=True)
     else:
         st.info(f"ยังไม่มีประวัติในไฟล์ `{CSV_FILE_MAP[selected_day]}`")
 
-    st.caption("LAO AI PROFESSIONAL v4.1 (Button Day Selector & Separate CSV Engine)")
+    st.caption("LAO AI PROFESSIONAL v4.1 (Final GitHub API Sync Engine)")
