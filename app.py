@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (5-DAY CSV SYNC)"
+VERSION = "4.1 HYBRID DAILY & PERMUTATION ENGINE (5-DAY CSV SYNC + TOP 4)"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -123,7 +123,6 @@ DAY_NAMES_TH = {
     "Friday": "วันศุกร์"
 }
 
-# กำหนดชื่อไฟล์ CSV แยกตามวัน (Mon-Fri)
 CSV_FILE_MAP = {
     "Monday": "history_lao_mon.csv",
     "Tuesday": "history_lao_tue.csv",
@@ -152,13 +151,12 @@ def load_day_history(day):
     return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
 
 def get_latest_base_number(day):
-    # ดึงค่า 'special' (เลข 6 ตัว) แถวแรกสุดจากไฟล์ CSV ประจำวันมาเป็นเลขฐานล่าสุด
     df = load_day_history(day)
     if not df.empty and "special" in df.columns:
         latest = str(df["special"].iloc[0]).zfill(6)
         if validate_number(latest):
             return latest
-    return "048808" # ค่าสำรองเริ่มต้น
+    return "048808"
 
 def save_analysis_history(day, base_number, top_3_val, bottom_2_val):
     filename = CSV_FILE_MAP.get(day)
@@ -407,7 +405,7 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         top_digits = ranking[:display_count]
         digits_only = [digit for digit, count in top_digits]
 
-        # คำนวณค่าตัวเลข 3 ตัว และ 2 ตัว สำหรับบันทึกลง CSV
+        # ค่าสำหรับบันทึกลง CSV (ใช้ 3 ตัว และ 2 ตัว)
         top_3_val = "".join(digits_only[:3]) if len(digits_only) >= 3 else ""
         bottom_2_val = "".join(digits_only[:2]) if len(digits_only) >= 2 else ""
 
@@ -468,14 +466,21 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         st.write("**กลุ่มรอง:** " + (" - ".join(secondary_group) if secondary_group else "-"))
         st.write("**เลขอื่น ๆ:** " + (" - ".join(remaining_group) if remaining_group else "-"))
 
+        # =====================================================
+        # 5. TOP PICKS (เพิ่ม 4 ตัว)
+        # =====================================================
         st.markdown("---")
         st.subheader("5. TOP PICKS")
-        if len(digits_only) >= 3:
+        if len(digits_only) >= 4:
+            top_4 = "".join(digits_only[:4])
+            top_3 = "".join(digits_only[:3])
+            top_2 = "".join(digits_only[:2])
             st.markdown(f"""
             <div class="pair-box">
                 <div class="pair-title">⭐ ชุดเน้นพิเศษ</div>
-                <span class="badge-number badge-highlight">3 ตัว: {top_3_val}</span>
-                <span class="badge-number badge-highlight">2 ตัว: {bottom_2_val}</span>
+                <span class="badge-number badge-highlight">4 ตัว: {top_4}</span>
+                <span class="badge-number badge-highlight">3 ตัว: {top_3}</span>
+                <span class="badge-number badge-highlight">2 ตัว: {top_2}</span>
             </div>
             """, unsafe_allow_html=True)
 
