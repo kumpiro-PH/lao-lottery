@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-VERSION = "4.1 HYBRID DAILY & AUTO-DATE CSV SYNC ENGINE"
+VERSION = "4.1 HYBRID DAILY & SEPARATE CSV UPDATE ENGINE"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -140,24 +140,21 @@ def get_daily_number(day):
 def validate_number(number):
     return bool(re.fullmatch(r"[0-9]{6}", str(number)))
 
-# ฟังก์ชันแปลง พ.ศ. เป็น ค.ศ. เพื่อการประมวลผลวันที่ที่ถูกต้อง
 def parse_date_str(date_str):
     date_str = date_str.strip()
     parts = date_str.split('/')
     if len(parts) == 3:
         d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
-        if y > 2400: # ปรับปี พ.ศ. เป็น ค.ศ.
+        if y > 2400:
             y -= 543
         return datetime(y, m, d)
     return None
 
-# ฟังก์ชันระบุวันในสัปดาห์ (Mon-Fri) จากสตริงวันที่
 def get_day_name_from_date(date_str):
     try:
         dt = parse_date_str(date_str)
         if dt:
             day_name = dt.strftime("%A")
-            # หากตรงกับ เสาร์/อาทิตย์ ให้แมปเข้าวันจันทร์ หรือวันทำการใกล้เคียงตามเหมาะสม
             if day_name in ["Saturday", "Sunday"]:
                 return "Monday"
             return day_name
@@ -221,22 +218,27 @@ def get_global_latest_base_number():
         
     return "048808"
 
-# บันทึกข้อมูลลง CSV อัตโนมัติตามวันที่ที่ผู้ใช้กรอก
-def save_analysis_history_auto(date_str, base_number, top_3_val, bottom_2_val):
+# บันทึกข้อมูลลง CSV อย่างเดียว
+def save_history_entry(date_str, base_number):
     target_day = get_day_name_from_date(date_str) or "Monday"
     filename = CSV_FILE_MAP.get(target_day)
     if not filename:
         return target_day
     
+    clean_num = str(base_number).zfill(6)
     new_record = {
         "date": date_str,
-        "special": str(base_number).zfill(6),
-        "first_prize": str(base_number)[3:].zfill(3),
-        "top_3": str(top_3_val),
-        "bottom_2": str(bottom_2_val)
+        "special": clean_num,
+        "first_prize": clean_num[3:].zfill(3),
+        "top_3": clean_num[4:].zfill(2),
+        "bottom_2": clean_num[2:4].zfill(2)
     }
     
     df = load_day_history(target_day)
+    # ป้องกันการบันทึกซ้ำถ้าระบุวันที่เดียวกัน
+    if not df.empty and "date" in df.columns:
+        df = df[df["date"] != date_str]
+        
     df_new = pd.DataFrame([new_record])
     df = pd.concat([df_new, df], ignore_index=True)
     
@@ -443,14 +445,12 @@ st.markdown("---")
 
 st.subheader("📅 Daily Number Engine & Date Auto-Sync")
 
-# ส่วนป้อนวันที่แทนการเลือกวัน (ระบบตรวจจับวันอัตโนมัติ)
 today_default = datetime.now().strftime("%d/%m/%Y")
 
 col_date1, col_date2 = st.columns([2, 1])
 with col_date1:
     input_date_str = st.text_input("ระบุวันที่ (รูปแบบ DD/MM/YYYY)", value=today_default, placeholder="เช่น 08/11/2569")
 
-# ตรวจหาว่าวันที่ที่กรอกตรงกับวันอะไร
 detected_day = get_day_name_from_date(input_date_str) or DEFAULT_DAY
 with col_date2:
     st.markdown(f"""
@@ -492,9 +492,24 @@ base_input = st.text_input(
     key="global_base_input"
 )
 
+# -----------------------------------------------------
+# ส่วนบันทึก/อัปเดตข้อมูล CSV แยกต่างหาก
+# -----------------------------------------------------
+if st.button("📥 บันทึก/อัปเดตข้อมูล CSV", use_container_width=True):
+    if not validate_number(base_input):
+        st.error("กรุณากรอกเลขฐานให้ครบ 6 หลักก่อนบันทึก")
+    else:
+        saved_day = save_history_entry(input_date_str, base_input)
+        st.success(f"บันทึกเลขฐาน `{base_input}` ประจำวันที่ `{input_date_str}` ลงใน `{CSV_FILE_MAP[saved_day]}` เรียบร้อยแล้ว!")
+        st.rerun()
+
+st.markdown("---")
 st.subheader("⚙️ Analysis Settings")
 display_count = st.radio("จำนวนเลขเด่นที่ต้องการแสดง", [5, 6], index=1, horizontal=True)
 
+# -----------------------------------------------------
+# ปุ่มสำหรับการวิเคราะห์แยกต่างหาก
+# -----------------------------------------------------
 if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=True):
     if not validate_number(base_input):
         st.error("กรุณากรอกเลขฐานให้ครบ 6 หลัก และใช้ตัวเลข 0-9 เท่านั้น")
@@ -503,12 +518,6 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         formula_counter, daily_counter, combined_counter, ranking = calculate_frequency(outputs, daily_number)
         top_digits = ranking[:display_count]
         digits_only = [digit for digit, count in top_digits]
-
-        top_3_val = "".join(digits_only[:3]) if len(digits_only) >= 3 else ""
-        bottom_2_val = "".join(digits_only[:2]) if len(digits_only) >= 2 else ""
-
-        # บันทึกลง CSV ประจำวันนั้นๆ อัตโนมัติโดยอิงตามวันที่ระบุ
-        saved_day = save_analysis_history_auto(input_date_str, base_input, top_3_val, bottom_2_val)
 
         st.markdown("---")
         st.subheader("3. เลขที่ปรากฏบ่อยจาก 15 สูตร + Daily Number")
@@ -547,7 +556,7 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
 
         st.markdown("---")
         st.header("📊 ANALYSIS REPORT")
-        st.success(f"วิเคราะห์และบันทึกเลขฐาน `{base_input}` ลง `{CSV_FILE_MAP[saved_day]}` ({DAY_NAMES_TH[saved_day]}) อัตโนมัติแล้ว")
+        st.info(f"ผลการวิเคราะห์สำหรับเลขฐาน `{base_input}` ประจำ{DAY_NAMES_TH[detected_day]}")
 
         col1, col2, col3 = st.columns(3)
         col1.metric("สูตรสำเร็จ", f"{len(outputs)}/15")
@@ -580,8 +589,8 @@ if st.button("🚀 ANALYZE LAO LOTTERY", type="primary", use_container_width=Tru
         total_digits = len(outputs)*4 + len(daily_number)
         st.caption(f"รวมจำนวนหลักที่นำมาวิเคราะห์: {total_digits} หลัก")
 
-        st.subheader(f"📜 ประวัติการวิเคราะห์และผลรางวัล ({DAY_NAMES_TH[saved_day]})")
-        df_hist = load_day_history(saved_day)
+        st.subheader(f"📜 ประวัติการวิเคราะห์และผลรางวัล ({DAY_NAMES_TH[detected_day]})")
+        df_hist = load_day_history(detected_day)
         if not df_hist.empty:
             st.dataframe(df_hist, use_container_width=True, hide_index=True)
         else:
@@ -596,4 +605,4 @@ else:
     else:
         st.info(f"ยังไม่มีประวัติในไฟล์ `{CSV_FILE_MAP[detected_day]}`")
 
-    st.caption("LAO AI PROFESSIONAL v4.1 (Auto Date CSV Sync)")
+    st.caption("LAO AI PROFESSIONAL v4.1 (Separate CSV Update Engine)")
