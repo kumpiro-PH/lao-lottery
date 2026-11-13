@@ -186,28 +186,26 @@ def load_day_history_from_github(day):
             "Accept": "application/vnd.github+json",
             "Cache-Control": "no-cache"
         }
-        # เพิ่ม Cache Buster (?t=timestamp) บังคับไม่ให้ Safari หรือ GitHub CDN ดึงข้อมูลเก่าจาก Cache
         timestamp = int(time.time() * 1000)
         file_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}?t={timestamp}"
-        try:
-            res = requests.get(file_url, headers=headers)
-            if res.status_code == 200:
-                file_data = res.json()
-                content_decoded = base64.b64decode(file_data["content"]).decode("utf-8")
-                df = pd.read_csv(StringIO(content_decoded), dtype=str)
-                if not df.empty and "date" in df.columns:
-                    df["_temp_date"] = df["date"].apply(parse_date_for_sort)
-                    df = df.sort_values(by="_temp_date", ascending=False, na_position="last")
-                    df = df.drop(columns=["_temp_date"])
-                return df
-        except Exception:
-            pass
+        
+        # ถอด try...except ออกชั่วคราวเพื่อให้เห็น Error ชัดเจน
+        res = requests.get(file_url, headers=headers)
+        if res.status_code == 200:
+            file_data = res.json()
+            content_decoded = base64.b64decode(file_data["content"]).decode("utf-8")
+            df = pd.read_csv(StringIO(content_decoded), dtype=str)
+            if not df.empty and "date" in df.columns:
+                df["_temp_date"] = df["date"].apply(parse_date_for_sort)
+                df = df.sort_values(by="_temp_date", ascending=False, na_position="last")
+                df = df.drop(columns=["_temp_date"])
+            return df
+        else:
+            st.error(f"GitHub API Error ({res.status_code}) สำหรับไฟล์ {filename}: {res.text}")
             
     if filename and os.path.exists(filename):
-        try:
-            return pd.read_csv(filename, dtype=str)
-        except Exception:
-            pass
+        st.warning(f"กำลังใช้ไฟล์สำรองในเครื่องสำหรับ {filename}")
+        return pd.read_csv(filename, dtype=str)
             
     return pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
 
