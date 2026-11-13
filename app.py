@@ -7,6 +7,7 @@ import pandas as pd
 import os
 import base64
 import requests
+import time
 from io import StringIO
 
 # =====================================================
@@ -14,12 +15,12 @@ from io import StringIO
 # =====================================================
 
 st.set_page_config(
-    page_title="LAO AI PROFESSIONAL v4.1",
+    page_title="LAO AI PROFESSIONAL v4.2",
     page_icon="🧠",
     layout="centered"
 )
 
-VERSION = "4.1 FINAL FIXED DATE SORTING ENGINE"
+VERSION = "4.2 REAL-TIME MOBILE & CACHE FIXED ENGINE"
 
 # =====================================================
 # 2. CSS - SKY BLUE MOBILE THEME
@@ -151,13 +152,13 @@ def get_daily_number(day):
 def validate_number(number):
     return bool(re.fullmatch(r"[0-9]{6}", str(number)))
 
-# ฟังก์ชันแปลงและจัดรูปแบบวันที่ให้เป็น พ.ศ. เสมอเพื่อความ 
+# ฟังก์ชันแปลงและจัดรูปแบบวันที่ให้เป็น พ.ศ. เสมอ
 def normalize_date_format(date_str):
     date_str = date_str.strip()
     parts = date_str.split('/')
     if len(parts) == 3:
         d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
-        if y < 2400: # ถ้ากรอก ค.ศ. มา (เช่น 2026) แปลงเป็น พ.ศ. (2569)
+        if y < 2400:  # ถ้ากรอก ค.ศ. มา (เช่น 2026) แปลงเป็น พ.ศ. (2569)
             y += 543
         return f"{d:02d}/{m:02d}/{y}"
     return date_str
@@ -167,7 +168,7 @@ def parse_date_for_sort(date_str):
         parts = str(date_str).strip().split('/')
         if len(parts) == 3:
             d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
-            if y > 2400: # แปลง พ.ศ. เป็น ค.ศ. ชั่วคราวเพื่อให้ datetime เปรียบเทียบได้ถูกต้อง
+            if y > 2400:  # แปลง พ.ศ. เป็น ค.ศ. ชั่วคราวเพื่อให้ datetime เปรียบเทียบได้ถูกต้อง
                 y -= 543
             return datetime(y, m, d)
     except Exception:
@@ -182,9 +183,12 @@ def load_day_history_from_github(day):
     if github_token and repo_name and filename:
         headers = {
             "Authorization": f"Bearer {github_token}",
-            "Accept": "application/vnd.github+json"
+            "Accept": "application/vnd.github+json",
+            "Cache-Control": "no-cache"
         }
-        file_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}"
+        # เพิ่ม Cache Buster (?t=timestamp) บังคับไม่ให้ Safari หรือ GitHub CDN ดึงข้อมูลเก่าจาก Cache
+        timestamp = int(time.time() * 1000)
+        file_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}?t={timestamp}"
         try:
             res = requests.get(file_url, headers=headers)
             if res.status_code == 200:
@@ -260,11 +264,15 @@ def save_history_to_github(target_day, date_str, base_number):
         
     headers = {
         "Authorization": f"Bearer {github_token}",
-        "Accept": "application/vnd.github+json"
+        "Accept": "application/vnd.github+json",
+        "Cache-Control": "no-cache"
     }
-    file_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}"
+    # ใช้ Cache Buster ตอนดึง SHA ล่าสุด ป้องกัน 409 Conflict บนมือถือ
+    timestamp = int(time.time() * 1000)
+    get_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}?t={timestamp}"
+    put_url = f"https://api.github.com/repos/{repo_name}/contents/{filename}"
     
-    res = requests.get(file_url, headers=headers)
+    res = requests.get(get_url, headers=headers)
     file_sha = None
     existing_df = pd.DataFrame(columns=["date", "special", "first_prize", "top_3", "bottom_2"])
     
@@ -304,8 +312,12 @@ def save_history_to_github(target_day, date_str, base_number):
     if file_sha:
         payload["sha"] = file_sha
         
-    put_res = requests.put(file_url, headers=headers, json=payload)
-    return put_res.status_code in [200, 201]
+    put_res = requests.put(put_url, headers=headers, json=payload)
+    if put_res.status_code in [200, 201]:
+        # หน่วงเวลา 1.5 วินาทีเพื่อให้ GitHub Commit ประมวลผลเสร็จสมบูรณ์ก่อนรีโหลดหน้าเว็บ
+        time.sleep(1.5)
+        return True
+    return False
 
 
 # =====================================================
@@ -527,25 +539,42 @@ with col_info2:
 st.subheader("🔢 เลขฐาน")
 global_latest_base = get_global_latest_base_number()
 
+# อัปเดตค่าในช่องกรอกให้ตรงกับค่าล่าสุดเสมอหากยังไม่ได้แก้ไขหรือหลังบันทึกเสร็จ
+if "last_fetched_base" not in st.session_state or st.session_state.last_fetched_base != global_latest_base:
+    st.session_state.last_fetched_base = global_latest_base
+    st.session_state.global_base_input = global_latest_base
+
 base_input = st.text_input(
     "ป้อนเลขฐาน 6 หลัก (ดึงค่าล่าสุดจาก 5 วัน เป็นค่าเริ่มต้น สามารถแก้ไขได้)",
-    value=global_latest_base,
     max_chars=6,
     placeholder="เช่น 048808",
     key="global_base_input"
 )
 
-# ปุ่มบันทึก/อัปเดตข้อมูลขึ้น GitHub API โดยตรง
-if st.button("📥 บันทึก/อัปเดตข้อมูล CSV", use_container_width=True):
-    if not validate_number(base_input):
-        st.error("กรุณากรอกเลขฐานให้ครบ 6 หลักก่อนบันทึก")
-    else:
-        success = save_history_to_github(selected_day, input_date_str, base_input)
-        if success:
-            st.success(f"บันทึกเลขฐาน `{base_input}` ลง GitHub สำเร็จ! (`{CSV_FILE_MAP[selected_day]}`)")
-            st.rerun()
+col_btn1, col_btn2 = st.columns([3, 1])
+
+with col_btn1:
+    # ปุ่มบันทึก/อัปเดตข้อมูลขึ้น GitHub API โดยตรง
+    if st.button("📥 บันทึก/อัปเดตข้อมูล CSV", use_container_width=True):
+        if not validate_number(base_input):
+            st.error("กรุณากรอกเลขฐานให้ครบ 6 หลักก่อนบันทึก")
         else:
-            st.error("เกิดข้อผิดพลาดในการบันทึกข้อมูลขึ้น GitHub กรุณาตรวจสอบ Token และ Secrets อีกครั้ง")
+            with st.spinner("กำลังบันทึกข้อมูลลง GitHub และรีเฟรชระบบ..."):
+                success = save_history_to_github(selected_day, input_date_str, base_input)
+                if success:
+                    st.cache_data.clear()
+                    st.session_state.last_fetched_base = None  # บังคับรีเฟรชค่าในช่อง input
+                    st.success(f"บันทึกเลขฐาน `{base_input}` ลง GitHub สำเร็จ! (`{CSV_FILE_MAP[selected_day]}`)")
+                    st.rerun()
+                else:
+                    st.error("เกิดข้อผิดพลาดในการบันทึกข้อมูลขึ้น GitHub กรุณาตรวจสอบ Token และ Secrets อีกครั้ง")
+
+with col_btn2:
+    # ปุ่มรีเฟรชข้อมูลด้วยตนเองสำหรับ Safari บนมือถือ
+    if st.button("🔄 รีเฟรช", use_container_width=True, help="ดึงข้อมูลล่าสุดจาก GitHub ทันที"):
+        st.cache_data.clear()
+        st.session_state.last_fetched_base = None
+        st.rerun()
 
 st.markdown("---")
 st.subheader("⚙️ Analysis Settings")
@@ -647,4 +676,4 @@ else:
     else:
         st.info(f"ยังไม่มีประวัติในไฟล์ `{CSV_FILE_MAP[selected_day]}`")
 
-    st.caption("LAO AI PROFESSIONAL v4.1 (Fixed Date Sorting & GitHub API)")
+    st.caption("LAO AI PROFESSIONAL v4.2 (Real-Time Mobile & Safari Cache Fix)")
