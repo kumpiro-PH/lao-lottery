@@ -226,23 +226,46 @@ def get_latest_base_number_for_day(day):
     return fallbacks.get(day, "048808")
 
 def get_global_latest_base_number():
+    """
+    ค้นหาเลขฐานจากผลรางวัลล่าสุดจริง โดยเปรียบเทียบวันที่
+    ใน CSV ทั้ง 5 วัน (Monday-Friday) ไม่ยึดตามวันที่เลือกวิเคราะห์
+    """
     all_records = []
+
     for day_key in CSV_FILE_MAP.keys():
         df = load_day_history_from_github(day_key)
-        if not df.empty and "date" in df.columns and "special" in df.columns:
-            for _, row in df.iterrows():
-                special_val = str(row["special"]).zfill(6)
-                if validate_number(special_val):
-                    dt_val = parse_date_for_sort(row["date"])
-                    all_records.append({
-                        "date": dt_val,
-                        "special": special_val
-                    })
-    if all_records:
-        df_all = pd.DataFrame(all_records)
-        df_all = df_all.sort_values(by="date", ascending=False, na_position="last")
-        return df_all.iloc[0]["special"]
-    return "048808"
+
+        if df.empty or "date" not in df.columns or "special" not in df.columns:
+            continue
+
+        for _, row in df.iterrows():
+            raw_date = str(row["date"]).strip()
+            raw_number = str(row["special"]).strip()
+
+            if not raw_date or raw_date.lower() in ("nan", "none"):
+                continue
+
+            # เก็บเลขเป็น string เพื่อรักษาเลข 0 นำหน้า
+            special_val = raw_number.zfill(6)
+            if not validate_number(special_val):
+                continue
+
+            dt_val = parse_date_for_sort(raw_date)
+            if dt_val == datetime(1900, 1, 1):
+                continue
+
+            all_records.append({
+                "date": dt_val,
+                "special": special_val,
+                "source_day": day_key
+            })
+
+    if not all_records:
+        return ""
+
+    # เลือกแถวที่มีวันที่ใหม่ที่สุดจากทุกไฟล์
+    latest_record = max(all_records, key=lambda item: item["date"])
+    return latest_record["special"]
 
 def save_history_to_github(target_day, date_str, base_number):
     filename = CSV_FILE_MAP.get(target_day)
@@ -509,45 +532,61 @@ selected_day_th = st.radio(
 )
 
 selected_day = DAY_MAPPING[selected_day_th]
+
+# Daily Number เปลี่ยนตามวันที่เลือก
 daily_number = get_daily_number(selected_day)
 
-# 📌 1. เลขฐานล่าสุดใช้ผลรางวัลล่าสุดจริงจาก CSV ทุกวันจันทร์–ศุกร์ (Global)
-global_latest_base = get_global_latest_base_number()
+# เลขฐานต้องเป็นผลรางวัลล่าสุดจริงจาก CSV ทั้ง 5 วัน
+# ไม่เปลี่ยนไปอ่าน CSV ของวันที่เลือกวิเคราะห์
+global_latest_base_number = get_global_latest_base_number()
 
 today_default = datetime.now().strftime("%d/%m/%Y")
-input_date_str = st.text_input("ระบุวันที่สำหรับบันทึกข้อมูล (รูปแบบ DD/MM/YYYY)", value=today_default, placeholder="เช่น 08/11/2569")
+input_date_str = st.text_input(
+    "ระบุวันที่สำหรับบันทึกข้อมูล (รูปแบบ DD/MM/YYYY)",
+    value=today_default,
+    placeholder="เช่น 08/11/2569"
+)
 
 col_info1, col_info2 = st.columns(2)
 
-# ฝั่งซ้าย: Daily Number เปลี่ยนตามวันที่เลือก
 with col_info1:
     st.markdown(f"""
     <div class="pair-box">
         <div class="pair-title">📌 Daily Number ({selected_day_th})</div>
         <div><span class="badge-number badge-highlight">{daily_number}</span></div>
-        <div style="margin-top:5px; font-size:12px; color:#64748b;">อ้างอิง: ตามปุ่มวันที่เลือก</div>
+        <div style="margin-top:5px; font-size:12px; color:#64748b;">
+            อ้างอิง: ตามวันที่เลือกวิเคราะห์
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-# ฝั่งขวา: เลขฐานล่าสุดจากทุกวันจันทร์–ศุกร์
 with col_info2:
+    latest_base_display = global_latest_base_number or "ไม่พบข้อมูล"
     st.markdown(f"""
     <div class="pair-box">
-        <div class="pair-title">🔢 เลขฐานล่าสุด (ทุกวันจันทร์–ศุกร์)</div>
-        <div><span class="badge-number badge-highlight">{global_latest_base}</span></div>
-        <div style="margin-top:5px; font-size:12px; color:#64748b;">แหล่งข้อมูล: ผลรางวัลล่าสุดจริงจากทุกไฟล์ CSV</div>
+        <div class="pair-title">🔢 เลขฐานล่าสุด (ผลล่าสุดทุกวัน)</div>
+        <div><span class="badge-number badge-highlight">{latest_base_display}</span></div>
+        <div style="margin-top:5px; font-size:12px; color:#64748b;">
+            แหล่งข้อมูล: CSV วันจันทร์-วันศุกร์ (เลือกวันที่ใหม่ที่สุด)
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
 st.subheader("🔢 เลขฐาน")
 
-# 📌 2. ช่องเลขฐาน 6 หลัก เติมเลขฐานจากผลรางวัลล่าสุดจริง (Global)
-if "last_fetched_base" not in st.session_state or st.session_state.last_fetched_base != global_latest_base:
-    st.session_state.last_fetched_base = global_latest_base
-    st.session_state.global_base_input = global_latest_base
+# เมื่อเปลี่ยนวันวิเคราะห์ ให้เติมเลขฐานผลล่าสุดจริงจากทุก CSV ใหม่
+# ใช้ marker เพื่อให้ session เก่าจากโค้ดเวอร์ชันก่อนถูกแทนค่าครั้งแรกด้วย
+if (
+    st.session_state.get("base_source_mode") != "global_latest_v1"
+    or st.session_state.get("last_selected_day") != selected_day
+):
+    st.session_state.last_selected_day = selected_day
+    st.session_state.global_base_input = global_latest_base_number
+    st.session_state.base_source_mode = "global_latest_v1"
 
 base_input = st.text_input(
-    "ป้อนเลขฐาน 6 หลัก (ดึงค่าจากผลรางวัลล่าสุดจริงทุกวันจันทร์–ศุกร์ สามารถแก้ไขได้)",
+    f"ป้อนเลขฐาน 6 หลักสำหรับการวิเคราะห์ {selected_day_th} "
+    "(เติมผลรางวัลล่าสุดจาก CSV ทั้ง 5 วันอัตโนมัติ สามารถแก้ไขได้)",
     max_chars=6,
     placeholder="เช่น 048808",
     key="global_base_input"
@@ -564,7 +603,7 @@ with col_btn1:
                 success = save_history_to_github(selected_day, input_date_str, base_input)
                 if success:
                     st.cache_data.clear()
-                    st.session_state.last_fetched_base = None  
+                    st.session_state.last_selected_day = None  
                     st.success(f"บันทึกเลขฐาน `{base_input}` ลง GitHub สำเร็จ! (`{CSV_FILE_MAP[selected_day]}`)")
                     st.rerun()
                 else:
@@ -573,7 +612,7 @@ with col_btn1:
 with col_btn2:
     if st.button("🔄 รีเฟรช", use_container_width=True, help="ดึงข้อมูลล่าสุดจาก GitHub ทันที"):
         st.cache_data.clear()
-        st.session_state.last_fetched_base = None
+        st.session_state.last_selected_day = None
         st.rerun()
 
 st.markdown("---")
