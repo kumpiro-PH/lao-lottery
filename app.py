@@ -530,20 +530,19 @@ with col_info2:
     <div class="pair-box">
         <div class="pair-title">🔢 เลขฐานล่าสุด ({selected_day_th})</div>
         <div><span class="badge-number badge-highlight">{latest_base_for_selected_day}</span></div>
-        <div style="margin-top:5px; font-size:12px; color:#64748b;">แหล่งข้อมูล: GitHub API</div>
+        <div style="margin-top:5px; font-size:12px; color:#64748b;">แหล่งข้อมูล: GitHub API ({CSV_FILE_MAP[selected_day]})</div>
     </div>
     """, unsafe_allow_html=True)
 
 st.subheader("🔢 เลขฐาน")
-global_latest_base = get_global_latest_base_number()
 
-# อัปเดตค่าในช่องกรอกให้ตรงกับค่าล่าสุดเสมอหากยังไม่ได้แก้ไขหรือหลังบันทึกเสร็จ
-if "last_fetched_base" not in st.session_state or st.session_state.last_fetched_base != global_latest_base:
-    st.session_state.last_fetched_base = global_latest_base
-    st.session_state.global_base_input = global_latest_base
+# 📌 ปรับให้ใช้เลขฐานล่าสุดของ "วันนั้นๆ" แทนการดึงแบบ Global รวมทุกวัน เพื่อความถูกต้องตรงกัน
+if "last_selected_day" not in st.session_state or st.session_state.last_selected_day != selected_day:
+    st.session_state.last_selected_day = selected_day
+    st.session_state.global_base_input = latest_base_for_selected_day
 
 base_input = st.text_input(
-    "ป้อนเลขฐาน 6 หลัก (ดึงค่าล่าสุดจาก 5 วัน เป็นค่าเริ่มต้น สามารถแก้ไขได้)",
+    f"ป้อนเลขฐาน 6 หลักสำหรับ {selected_day_th} (ดึงค่าล่าสุดจากไฟล์ {CSV_FILE_MAP[selected_day]} สามารถแก้ไขได้)",
     max_chars=6,
     placeholder="เช่น 048808",
     key="global_base_input"
@@ -552,7 +551,6 @@ base_input = st.text_input(
 col_btn1, col_btn2 = st.columns([3, 1])
 
 with col_btn1:
-    # ปุ่มบันทึก/อัปเดตข้อมูลขึ้น GitHub API โดยตรง
     if st.button("📥 บันทึก/อัปเดตข้อมูล CSV", use_container_width=True):
         if not validate_number(base_input):
             st.error("กรุณากรอกเลขฐานให้ครบ 6 หลักก่อนบันทึก")
@@ -561,17 +559,16 @@ with col_btn1:
                 success = save_history_to_github(selected_day, input_date_str, base_input)
                 if success:
                     st.cache_data.clear()
-                    st.session_state.last_fetched_base = None  # บังคับรีเฟรชค่าในช่อง input
+                    st.session_state.last_selected_day = None  
                     st.success(f"บันทึกเลขฐาน `{base_input}` ลง GitHub สำเร็จ! (`{CSV_FILE_MAP[selected_day]}`)")
                     st.rerun()
                 else:
                     st.error("เกิดข้อผิดพลาดในการบันทึกข้อมูลขึ้น GitHub กรุณาตรวจสอบ Token และ Secrets อีกครั้ง")
 
 with col_btn2:
-    # ปุ่มรีเฟรชข้อมูลด้วยตนเองสำหรับ Safari บนมือถือ
     if st.button("🔄 รีเฟรช", use_container_width=True, help="ดึงข้อมูลล่าสุดจาก GitHub ทันที"):
         st.cache_data.clear()
-        st.session_state.last_fetched_base = None
+        st.session_state.last_selected_day = None
         st.rerun()
 
 st.markdown("---")
