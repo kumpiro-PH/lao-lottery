@@ -510,12 +510,16 @@ selected_day_th = st.radio(
 
 selected_day = DAY_MAPPING[selected_day_th]
 daily_number = get_daily_number(selected_day)
-latest_base_for_selected_day = get_latest_base_number_for_day(selected_day)
+
+# 📌 1. เลขฐานล่าสุดใช้ผลรางวัลล่าสุดจริงจาก CSV ทุกวันจันทร์–ศุกร์ (Global)
+global_latest_base = get_global_latest_base_number()
 
 today_default = datetime.now().strftime("%d/%m/%Y")
 input_date_str = st.text_input("ระบุวันที่สำหรับบันทึกข้อมูล (รูปแบบ DD/MM/YYYY)", value=today_default, placeholder="เช่น 08/11/2569")
 
 col_info1, col_info2 = st.columns(2)
+
+# ฝั่งซ้าย: Daily Number เปลี่ยนตามวันที่เลือก
 with col_info1:
     st.markdown(f"""
     <div class="pair-box">
@@ -525,24 +529,25 @@ with col_info1:
     </div>
     """, unsafe_allow_html=True)
 
+# ฝั่งขวา: เลขฐานล่าสุดจากทุกวันจันทร์–ศุกร์
 with col_info2:
     st.markdown(f"""
     <div class="pair-box">
-        <div class="pair-title">🔢 เลขฐานล่าสุด ({selected_day_th})</div>
-        <div><span class="badge-number badge-highlight">{latest_base_for_selected_day}</span></div>
-        <div style="margin-top:5px; font-size:12px; color:#64748b;">แหล่งข้อมูล: GitHub API ({CSV_FILE_MAP[selected_day]})</div>
+        <div class="pair-title">🔢 เลขฐานล่าสุด (ทุกวันจันทร์–ศุกร์)</div>
+        <div><span class="badge-number badge-highlight">{global_latest_base}</span></div>
+        <div style="margin-top:5px; font-size:12px; color:#64748b;">แหล่งข้อมูล: ผลรางวัลล่าสุดจริงจากทุกไฟล์ CSV</div>
     </div>
     """, unsafe_allow_html=True)
 
 st.subheader("🔢 เลขฐาน")
 
-# 📌 ปรับให้ใช้เลขฐานล่าสุดของ "วันนั้นๆ" แทนการดึงแบบ Global รวมทุกวัน เพื่อความถูกต้องตรงกัน
-if "last_selected_day" not in st.session_state or st.session_state.last_selected_day != selected_day:
-    st.session_state.last_selected_day = selected_day
-    st.session_state.global_base_input = latest_base_for_selected_day
+# 📌 2. ช่องเลขฐาน 6 หลัก เติมเลขฐานจากผลรางวัลล่าสุดจริง (Global)
+if "last_fetched_base" not in st.session_state or st.session_state.last_fetched_base != global_latest_base:
+    st.session_state.last_fetched_base = global_latest_base
+    st.session_state.global_base_input = global_latest_base
 
 base_input = st.text_input(
-    f"ป้อนเลขฐาน 6 หลักสำหรับ {selected_day_th} (ดึงค่าล่าสุดจากไฟล์ {CSV_FILE_MAP[selected_day]} สามารถแก้ไขได้)",
+    "ป้อนเลขฐาน 6 หลัก (ดึงค่าจากผลรางวัลล่าสุดจริงทุกวันจันทร์–ศุกร์ สามารถแก้ไขได้)",
     max_chars=6,
     placeholder="เช่น 048808",
     key="global_base_input"
@@ -559,7 +564,7 @@ with col_btn1:
                 success = save_history_to_github(selected_day, input_date_str, base_input)
                 if success:
                     st.cache_data.clear()
-                    st.session_state.last_selected_day = None  
+                    st.session_state.last_fetched_base = None  
                     st.success(f"บันทึกเลขฐาน `{base_input}` ลง GitHub สำเร็จ! (`{CSV_FILE_MAP[selected_day]}`)")
                     st.rerun()
                 else:
@@ -568,7 +573,7 @@ with col_btn1:
 with col_btn2:
     if st.button("🔄 รีเฟรช", use_container_width=True, help="ดึงข้อมูลล่าสุดจาก GitHub ทันที"):
         st.cache_data.clear()
-        st.session_state.last_selected_day = None
+        st.session_state.last_fetched_base = None
         st.rerun()
 
 st.markdown("---")
